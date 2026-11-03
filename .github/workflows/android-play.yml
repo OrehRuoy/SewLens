@@ -104,8 +104,15 @@ jobs:
       - name: Install Android build template and locales
         run: |
           set -euo pipefail
-          "$GODOT_BIN" --headless --path . --import || true
-          "$GODOT_BIN" --headless --path . --install-android-build-template
+          # Godot --install-android-build-template does not return on this project.
+          # The export template zip is the same source that command unpacks.
+          TDIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          test -f "$TDIR/android_source.zip"
+          rm -rf android/build
+          mkdir -p android/build
+          unzip -q "$TDIR/android_source.zip" -d android/build
+          test -f android/build/build.gradle
+          test -f android/.build_version
           python3 tools/overlay_android_locales.py
 
       - name: Restore google-services.json
