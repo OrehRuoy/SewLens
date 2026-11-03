@@ -1,0 +1,34 @@
+# Godot
+.godot/
+android/build/
+build/
+*.translation
+!i18n/*.translation
+
+# Export output
+*.ipa
+*.apk
+*.aab
+*.pck
+*.keystore
+*.p12
+*.pfx
+*.p8
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+*service-account*.json
+*credentials*.json
+export_credentials.cfg
+SewLens-keys/
+
+# Functions
+functions/node_modules/
+
+# Local build plan (not part of the app repo)
+sewlens-build-plan/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.tmp

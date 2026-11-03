@@ -1,0 +1,6 @@
+---
+description: Only when running a SewLens build plan step file (STEP_00–STEP_10)
+alwaysApply: false
+---
+
+Before starting any STEP_XX.md from the SewLens build plan, read MODELS.md in the plan folder. If you are not the model listed for that step, stop and tell Brock to switch models before continuing. This rule does not apply to normal work outside the build plan steps.

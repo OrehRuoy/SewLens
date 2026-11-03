@@ -1,0 +1,4 @@
+* text=auto eol=lf
+tools/ios/patch_xcode_signing.py text eol=lf
+*.png binary
+*.translation binary
