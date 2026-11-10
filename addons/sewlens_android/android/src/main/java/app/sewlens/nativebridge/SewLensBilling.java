@@ -14,6 +14,7 @@ import com.android.billingclient.api.ProductDetails;
 import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.QueryProductDetailsResult;
 import com.android.billingclient.api.QueryPurchasesParams;
 
 import org.json.JSONArray;
@@ -153,7 +154,8 @@ final class SewLensBilling implements PurchasesUpdatedListener {
         list.add(product(CREDIT));
         list.add(product(UNLIMITED));
         QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder().setProductList(list).build();
-        client.queryProductDetailsAsync(params, (result, details) -> {
+        client.queryProductDetailsAsync(params, (BillingResult result, QueryProductDetailsResult queryResult) -> {
+            List<ProductDetails> details = queryResult == null ? null : queryResult.getProductDetailsList();
             if (result.getResponseCode() != BillingClient.BillingResponseCode.OK || details == null) {
                 emit(status("unavailable"));
                 return;
@@ -172,8 +174,14 @@ final class SewLensBilling implements PurchasesUpdatedListener {
             emit(status("unavailable"));
             return;
         }
+        ProductDetails.OneTimePurchaseOfferDetails offer = offerOf(details);
+        if (offer == null) {
+            emit(status("unavailable"));
+            return;
+        }
         BillingFlowParams.ProductDetailsParams item = BillingFlowParams.ProductDetailsParams.newBuilder()
                 .setProductDetails(details)
+                .setOfferToken(offer.getOfferToken())
                 .build();
         BillingFlowParams flow = BillingFlowParams.newBuilder()
                 .setProductDetailsParamsList(Collections.singletonList(item))
@@ -221,11 +229,26 @@ final class SewLensBilling implements PurchasesUpdatedListener {
                 .build();
     }
 
-    private static String priceOf(ProductDetails details) {
-        if (details.getOneTimePurchaseOfferDetails() == null) {
-            return "";
+    /** The store's localized price and the offer token used to buy it. */
+    private static ProductDetails.OneTimePurchaseOfferDetails offerOf(ProductDetails details) {
+        List<ProductDetails.OneTimePurchaseOfferDetails> offers = details.getOneTimePurchaseOfferDetailsList();
+        if (offers == null) {
+            return null;
         }
-        return details.getOneTimePurchaseOfferDetails().getFormattedPrice();
+        for (ProductDetails.OneTimePurchaseOfferDetails offer : offers) {
+            if (offer == null || offer.getOfferToken() == null || offer.getOfferToken().isEmpty()) {
+                continue;
+            }
+            if (offer.getFormattedPrice() != null && !offer.getFormattedPrice().isEmpty()) {
+                return offer;
+            }
+        }
+        return null;
+    }
+
+    private static String priceOf(ProductDetails details) {
+        ProductDetails.OneTimePurchaseOfferDetails offer = offerOf(details);
+        return offer == null ? "" : offer.getFormattedPrice();
     }
 
     private static JSONObject purchaseJson(Purchase purchase) {

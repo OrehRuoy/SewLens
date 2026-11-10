@@ -24,7 +24,7 @@ class AndroidExportPlugin extends EditorExportPlugin:
 		return PackedStringArray([
 			"com.google.firebase:firebase-analytics:22.5.0",
 			"com.google.firebase:firebase-crashlytics:19.4.4",
-			"com.android.billingclient:billing:7.1.1",
+			"com.android.billingclient:billing:8.3.0",
 			"com.google.android.play:review:2.0.2",
 		])
 
