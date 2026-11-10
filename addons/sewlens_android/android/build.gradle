@@ -1,0 +1,26 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'app.sewlens.plugins'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 24
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    compileOnly files('libs/godot-classes.jar')
+    compileOnly 'com.google.firebase:firebase-analytics:22.5.0'
+    compileOnly 'com.google.firebase:firebase-crashlytics:19.4.4'
+    compileOnly 'androidx.core:core:1.13.1'
+    compileOnly 'com.android.billingclient:billing:7.1.1'
+    compileOnly 'com.google.android.play:review:2.0.2'
+}

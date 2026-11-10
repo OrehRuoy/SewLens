@@ -1,0 +1,14 @@
+{
+  "steps": [
+    "guide_step_square",
+    "guide_step_grain",
+    "guide_step_cut",
+    "guide_step_notches",
+    "guide_step_sew",
+    "guide_step_finish",
+    "guide_step_hem"
+  ],
+  "notes": [
+    "guide_note_aaron"
+  ]
+}

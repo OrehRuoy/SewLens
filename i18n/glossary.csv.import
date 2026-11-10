@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://du4rm3gf07pwj"
+
+[deps]
+
+files=["res://i18n/glossary.en.translation", "res://i18n/glossary.de.translation", "res://i18n/glossary.fr.translation", "res://i18n/glossary.es.translation", "res://i18n/glossary.pt_BR.translation", "res://i18n/glossary.ja.translation", "res://i18n/glossary.it.translation", "res://i18n/glossary.nl.translation"]
+
+source_file="res://i18n/glossary.csv"
+dest_files=["res://i18n/glossary.en.translation", "res://i18n/glossary.de.translation", "res://i18n/glossary.fr.translation", "res://i18n/glossary.es.translation", "res://i18n/glossary.pt_BR.translation", "res://i18n/glossary.ja.translation", "res://i18n/glossary.it.translation", "res://i18n/glossary.nl.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

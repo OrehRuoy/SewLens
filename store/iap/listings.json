@@ -1,0 +1,34 @@
+{
+  "products": [
+    {
+      "id": "orehruoy.sewlens.credit",
+      "type": "consumable",
+      "priceUsd": "2.99",
+      "listings": {
+        "en": {"name": "1 Pattern Credit", "description": "Unlocks one additional pattern."},
+        "de": {"name": "1 Schnittmuster-Guthaben", "description": "Schaltet ein weiteres Schnittmuster frei."},
+        "fr": {"name": "1 crédit de patron", "description": "Débloque un patron supplémentaire."},
+        "es": {"name": "1 crédito de patrón", "description": "Desbloquea un patrón adicional."},
+        "pt-BR": {"name": "1 crédito de molde", "description": "Desbloqueia um molde adicional."},
+        "ja": {"name": "パターンクレジット 1回分", "description": "追加の型紙を1枚使えるようにします。"},
+        "it": {"name": "1 credito cartamodello", "description": "Sblocca un cartamodello in più."},
+        "nl": {"name": "1 patroontegoed", "description": "Ontgrendelt één extra patroon."}
+      }
+    },
+    {
+      "id": "orehruoy.sewlens.unlimited",
+      "type": "non-consumable",
+      "priceUsd": "24.99",
+      "listings": {
+        "en": {"name": "SewLens Unlimited", "description": "One-time unlock for unlimited patterns."},
+        "de": {"name": "SewLens Unbegrenzt", "description": "Einmalkauf für unbegrenzte Muster."},
+        "fr": {"name": "SewLens Illimité", "description": "Achat unique pour des patrons illimités."},
+        "es": {"name": "SewLens Ilimitado", "description": "Compra única para patrones ilimitados."},
+        "pt-BR": {"name": "SewLens Ilimitado", "description": "Compra única para moldes ilimitados."},
+        "ja": {"name": "SewLens 無制限", "description": "買い切りで型紙を無制限に作成。"},
+        "it": {"name": "SewLens Illimitato", "description": "Acquisto unico per cartamodelli illimitati."},
+        "nl": {"name": "SewLens Onbeperkt", "description": "Eenmalige aankoop voor onbeperkte patronen."}
+      }
+    }
+  ]
+}

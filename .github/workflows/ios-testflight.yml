@@ -35,6 +35,10 @@ jobs:
           grep -q 'application/app_store_team_id="9WRNQYQZTB"' export_presets.cfg
           grep -q 'application/export_project_only=true' export_presets.cfg
           grep -q 'application/provisioning_profile_uuid_release=' export_presets.cfg
+          grep -q '<key>ITSAppUsesNonExemptEncryption</key><false/>' export_presets.cfg
+          for key in iphone_120x120 iphone_180x180 ipad_152x152 ipad_167x167 spotlight_80x80 spotlight_120x120 settings_58x58 settings_87x87 notification_40x40 notification_60x60 notification_76x76 notification_114x114; do
+            grep -q "^icons/${key}=\"res://" export_presets.cfg
+          done
           test -f tools/ios/patch_xcode_signing.py
           test -f tools/ios/add_store_localizations.py
           test -f addons/sewlens_firebase_config/plugin.cfg
@@ -43,11 +47,18 @@ jobs:
           test -f tools/check_csv_complete.py
           python3 tools/check_csv_complete.py
           python3 tools/ios/add_store_localizations.py --self-test
+          python3 tools/ios/inject_native_source.py --self-test
+          python3 tools/ios/add_firebase_pods.py --self-test
           python3 tools/check_ipa_l10n.py --self-test
+          test -f ios/native/SewLensNative.m
           for lang in en de fr es pt-BR ja it nl; do
             test -f "ios/InfoPlist/${lang}.lproj/InfoPlist.strings"
             grep -q 'CFBundleDisplayName' "ios/InfoPlist/${lang}.lproj/InfoPlist.strings"
+            grep -q 'NSCameraUsageDescription' "ios/InfoPlist/${lang}.lproj/InfoPlist.strings"
+            grep -q 'NSPhotoLibraryUsageDescription' "ios/InfoPlist/${lang}.lproj/InfoPlist.strings"
           done
+          grep -Eq '^privacy/camera_usage_description=".+"' export_presets.cfg
+          grep -Eq '^privacy/photolibrary_usage_description=".+"' export_presets.cfg
           if grep -q 'plugins/exported=' export_presets.cfg; then
             echo "::error::Do not use plugins/exported="
             exit 1
@@ -61,11 +72,39 @@ jobs:
           chmod +x "$RUNNER_TEMP/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
           echo "GODOT_BIN=$RUNNER_TEMP/Godot_v${GODOT_VERSION}-stable_linux.x86_64" >> "$GITHUB_ENV"
 
-      - name: GUT smoke test
+      - name: Glossary and sewing guides
+        run: python3 tools/check_glossary.py
+
+      - name: IAP listings
+        run: python3 tools/check_iap_listings.py
+
+      - name: GUT tests
         run: |
           set -euo pipefail
           "$GODOT_BIN" --headless --path . --import || true
+          "$GODOT_BIN" --headless --path . --import
           "$GODOT_BIN" --headless --path . -s addons/gut/gut_cmdln.gd -gexit
+
+      - name: Locale screenshots and overflow check
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 \
+            libx11-6 libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxrender1 libxkbcommon0 >/dev/null
+          xvfb-run -a -s "-screen 0 1280x1024x24" \
+            "$GODOT_BIN" --rendering-driver opengl3 --path . -s res://test/locale_screens.gd
+          COUNT=$(find build/screens -name '*.png' | wc -l)
+          echo "Saved $COUNT locale screenshots"
+          test "$COUNT" -eq 165
+
+      - name: Upload locale screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SewLens-locale-screens
+          path: build/screens
+          retention-days: 14
+          if-no-files-found: ignore
 
   build-ios:
     needs: preflight
@@ -167,6 +206,18 @@ jobs:
           echo "Xcode project: $XCODEPROJ"
           ls -la build/
           python3 tools/ios/add_store_localizations.py build
+          python3 tools/ios/inject_native_source.py build
+          python3 tools/ios/add_firebase_pods.py build
+          if ! command -v pod >/dev/null; then sudo gem install cocoapods -N; fi
+          PODDIR=$(dirname "$(find build -name Podfile | head -1)")
+          (cd "$PODDIR" && pod install)
+          grep -q 'SewLensNative.m in Sources' "$XCODEPROJ/project.pbxproj"
+          NAME=$(basename "$XCODEPROJ" .xcodeproj)
+          APP_PLIST="$(dirname "$XCODEPROJ")/${NAME}/${NAME}-Info.plist"
+          test -f "$APP_PLIST"
+          plutil -extract NSCameraUsageDescription raw "$APP_PLIST"
+          plutil -extract NSPhotoLibraryUsageDescription raw "$APP_PLIST"
+          test "$(plutil -extract ITSAppUsesNonExemptEncryption raw "$APP_PLIST")" = "false"
 
       - name: Archive and export IPA
         run: |
@@ -189,8 +240,13 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" build/ExportOptions.plist
           plutil -lint build/ExportOptions.plist
           python3 tools/ios/patch_xcode_signing.py build "$PROFILE_NAME"
+          BUILD_TARGET=(-project "$XCODEPROJ")
+          WORKSPACE=$(find build -name '*.xcworkspace' -not -path '*/Pods/*' | head -1)
+          if [[ -n "$WORKSPACE" ]]; then
+            BUILD_TARGET=(-workspace "$WORKSPACE")
+          fi
           xcodebuild \
-            -project "$XCODEPROJ" \
+            "${BUILD_TARGET[@]}" \
             -scheme "$SCHEME" \
             -sdk iphoneos \
             -configuration Release \
@@ -210,6 +266,8 @@ jobs:
           test -n "$(ls build/*.ipa 2>/dev/null)"
           IPA=$(ls build/*.ipa | head -1)
           python3 tools/check_ipa_l10n.py "$IPA"
+          APP_BIN="$ARCHIVE/Products/Applications/${SCHEME}.app/${SCHEME}"
+          grep -aq 'SLNPhotoDelegate' "$APP_BIN" || { echo "::error::SewLensNative.m is not linked into the app"; exit 1; }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

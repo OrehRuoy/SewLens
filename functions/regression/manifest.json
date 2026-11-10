@@ -1,0 +1,142 @@
+[
+  {
+    "id": "aaron",
+    "design": "aaron",
+    "file": "aaron.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:LarsB%C3%B6rgeling.jpg",
+    "license": "CC BY-SA 3.0"
+  },
+  {
+    "id": "bella",
+    "design": "bella",
+    "file": "bella.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Bodice.jpg",
+    "license": "CC0"
+  },
+  {
+    "id": "bent",
+    "design": "bent",
+    "file": "bent.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Skirt_suit.jpg",
+    "license": "CC0 cc0"
+  },
+  {
+    "id": "brian",
+    "design": "brian",
+    "file": "brian.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Dress_formSerie1890.jpg",
+    "license": "Public domain pd"
+  },
+  {
+    "id": "bruce",
+    "design": "bruce",
+    "file": "bruce.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Boxers_Brief_1.jpg",
+    "license": "CC BY-SA 4.0 cc-by-sa-4.0"
+  },
+  {
+    "id": "charlie",
+    "design": "charlie",
+    "file": "charlie.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Chino_pants.jpg",
+    "license": "CC BY-SA 3.0 cc-by-sa-3.0"
+  },
+  {
+    "id": "florent",
+    "design": "florent",
+    "file": "florent.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Flat-cap.jpg",
+    "license": "CC BY-SA 3.0 cc-by-sa-3.0"
+  },
+  {
+    "id": "hugo",
+    "design": "hugo",
+    "file": "hugo.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Kapuzenpullover.jpg",
+    "license": "CC BY-SA 4.0"
+  },
+  {
+    "id": "jaeger",
+    "design": "jaeger",
+    "file": "jaeger.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Tailored_sport_coat_partial_lining.jpg",
+    "license": "CC BY-SA 3.0 cc-by-sa-3.0"
+  },
+  {
+    "id": "lily",
+    "design": "lily",
+    "file": "lily.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Leggings_(AM_1983.026-1).jpg",
+    "license": "CC BY 4.0 cc-by-4.0"
+  },
+  {
+    "id": "paco",
+    "design": "paco",
+    "file": "paco.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Track_suit_trousers.tif",
+    "license": "CC0 cc0"
+  },
+  {
+    "id": "penelope",
+    "design": "penelope",
+    "file": "penelope.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:The_School_ma%27am_look.jpg",
+    "license": "CC BY 2.0 cc-by-2.0"
+  },
+  {
+    "id": "sandy",
+    "design": "sandy",
+    "file": "sandy.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Circle_skirt.jpg",
+    "license": "CC BY 2.5"
+  },
+  {
+    "id": "simon",
+    "design": "simon",
+    "file": "simon.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Indonesian_Batik_Shirt_for_Men.jpg",
+    "license": "CC BY-SA 3.0 cc-by-sa-3.0"
+  },
+  {
+    "id": "simone",
+    "design": "simone",
+    "file": "simone.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Walapai_Indian_woman,_the_wife_of_Chief_Shurum,_with_W.H._James,_Hackbury,_Arizona,_ca.1900_(CHS-3182).jpg",
+    "license": "Public domain pd"
+  },
+  {
+    "id": "teagan",
+    "design": "teagan",
+    "file": "teagan.png",
+    "source": "https://commons.wikimedia.org/wiki/File:T-shirt_logo-plain.png",
+    "license": "CC BY-SA 3.0 cc-by-sa-3.0"
+  },
+  {
+    "id": "titan",
+    "design": "titan",
+    "file": "titan.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Trousers.jpg",
+    "license": "CC BY-SA 3.0 cc-by-sa-3.0"
+  },
+  {
+    "id": "trayvon",
+    "design": "trayvon",
+    "file": "trayvon.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Necktie.jpg",
+    "license": "CC BY-SA 3.0"
+  },
+  {
+    "id": "umbra",
+    "design": "umbra",
+    "file": "umbra.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Briefs.jpg",
+    "license": "CC BY-SA 3.0"
+  },
+  {
+    "id": "wahid",
+    "design": "wahid",
+    "file": "wahid.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Waistcoat.jpg",
+    "license": "CC BY-SA 3.0 cc-by-sa-3.0"
+  }
+]

@@ -2,3 +2,5 @@
 
 CFBundleDisplayName = "SewLens";
 CFBundleName = "SewLens";
+NSCameraUsageDescription = "SewLens gebruikt de camera om een kledingstuk te fotograferen en het patroon te vinden dat er het meest op lijkt. De foto wordt geanalyseerd en niet bewaard.";
+NSPhotoLibraryUsageDescription = "SewLens opent je foto's zodat je een kledingstuk kunt kiezen en het patroon kunt vinden dat er het meest op lijkt. De foto wordt geanalyseerd en niet bewaard.";

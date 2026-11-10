@@ -1,0 +1,30 @@
+{
+  "complaints": [
+    {"id": "chest_tight", "option": "chestEase", "delta": 0.02},
+    {"id": "chest_loose", "option": "chestEase", "delta": -0.02},
+    {"id": "waist_tight", "option": "waistEase", "delta": 0.02},
+    {"id": "waist_loose", "option": "waistEase", "delta": -0.02},
+    {"id": "hips_tight", "option": "hipsEase", "delta": 0.02},
+    {"id": "hips_loose", "option": "hipsEase", "delta": -0.02},
+    {"id": "biceps_tight", "option": "bicepsEase", "delta": 0.02},
+    {"id": "biceps_loose", "option": "bicepsEase", "delta": -0.02},
+    {"id": "seat_tight", "option": "seatEase", "delta": 0.02},
+    {"id": "seat_loose", "option": "seatEase", "delta": -0.02},
+    {"id": "knee_tight", "option": "kneeEase", "delta": 0.02},
+    {"id": "knee_loose", "option": "kneeEase", "delta": -0.02},
+    {"id": "head_tight", "option": "headEase", "delta": 0.02},
+    {"id": "head_loose", "option": "headEase", "delta": -0.02},
+    {"id": "length_short", "option": "lengthBonus", "delta": 0.02},
+    {"id": "length_long", "option": "lengthBonus", "delta": -0.02},
+    {"id": "sleeve_short", "option": "sleeveLengthBonus", "delta": 0.02},
+    {"id": "sleeve_long", "option": "sleeveLengthBonus", "delta": -0.02},
+    {"id": "leg_short", "option": "legBonus", "delta": 0.02},
+    {"id": "leg_long", "option": "legBonus", "delta": -0.02},
+    {"id": "stretch_tight", "option": "stretch", "delta": -0.02},
+    {"id": "stretch_loose", "option": "stretch", "delta": 0.02},
+    {"id": "fabric_tight", "option": "fabricStretch", "delta": -0.02},
+    {"id": "fabric_loose", "option": "fabricStretch", "delta": 0.02},
+    {"id": "xstretch_tight", "option": "xStretch", "delta": -0.02},
+    {"id": "xstretch_loose", "option": "xStretch", "delta": 0.02}
+  ]
+}

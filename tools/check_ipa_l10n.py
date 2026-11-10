@@ -3,6 +3,8 @@
 
 Unzips the IPA, reads Payload/*.app/Info.plist with plistlib, and requires
 CFBundleLocalizations plus <lang>.lproj/InfoPlist.strings for each language.
+Info.plist and every InfoPlist.strings must carry the camera and photo
+library usage text; iOS ends the app on first camera use without it.
 pt-BR and pt_BR are both accepted.
 """
 
@@ -10,6 +12,7 @@ from __future__ import annotations
 
 import io
 import plistlib
+import re
 import sys
 import tempfile
 import zipfile
@@ -17,6 +20,7 @@ from pathlib import Path
 
 
 LANGS = ("en", "de", "fr", "es", "pt-BR", "ja", "it", "nl")
+USAGE_KEYS = ("NSCameraUsageDescription", "NSPhotoLibraryUsageDescription")
 
 
 def plist_names(lang: str) -> set[str]:
@@ -44,8 +48,30 @@ def app_info_name(names: list[str]) -> str:
     return matches[0]
 
 
-def missing(names: list[str], plist: dict) -> list[str]:
+def strings_keys(data: bytes) -> set[str]:
+    """Keys of a .strings file: binary/XML plist (as Xcode ships it) or text."""
+    try:
+        parsed = plistlib.loads(data)
+        if isinstance(parsed, dict):
+            return {str(key) for key in parsed}
+    except Exception:
+        pass
+    for encoding in ("utf-8-sig", "utf-16"):
+        try:
+            text = data.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        return set()
+    return set(re.findall(r'^\s*"?([A-Za-z0-9_]+)"?\s*=', text, re.M))
+
+
+def missing(names: list[str], plist: dict, read=None) -> list[str]:
     errors: list[str] = []
+    for key in USAGE_KEYS:
+        if not str(plist.get(key, "")).strip():
+            errors.append(f"Info.plist missing {key}")
     localizations = plist.get("CFBundleLocalizations")
     if not isinstance(localizations, list):
         errors.append("CFBundleLocalizations missing or not an array")
@@ -59,14 +85,20 @@ def missing(names: list[str], plist: dict) -> list[str]:
             errors.append(f"CFBundleLocalizations missing {lang}")
         if prefix == "":
             continue
-        found = False
+        found = ""
         for folder in lproj_dirs(lang):
             strings = f"{prefix}{folder}/InfoPlist.strings"
             if strings in names:
-                found = True
+                found = strings
                 break
         if not found:
             errors.append(f"missing {prefix}<{lang}>.lproj/InfoPlist.strings")
+            continue
+        if read is not None:
+            keys = strings_keys(read(found))
+            for key in USAGE_KEYS:
+                if key not in keys:
+                    errors.append(f"{found} missing {key}")
     return errors
 
 
@@ -76,24 +108,30 @@ def check_ipa(path: Path) -> list[str]:
         info_name = app_info_name(names)
         with archive.open(info_name) as handle:
             plist = plistlib.load(handle)
-    if not isinstance(plist, dict):
-        return ["Info.plist is not a dictionary"]
-    return missing(names, plist)
+        if not isinstance(plist, dict):
+            return ["Info.plist is not a dictionary"]
+        return missing(names, plist, archive.read)
 
 
 def self_test() -> int:
-    def build(include_ja: bool, pt_folder: str) -> Path:
+    usage = {key: "Used to photograph a garment." for key in USAGE_KEYS}
+
+    def build(include_ja: bool, pt_folder: str, de_camera: bool = True) -> Path:
         buf = io.BytesIO()
         langs = [lang for lang in LANGS if include_ja or lang != "ja"]
-        plist = {"CFBundleLocalizations": langs, "CFBundleDisplayName": "SewLens"}
+        plist = {"CFBundleLocalizations": langs, "CFBundleDisplayName": "SewLens", **usage}
         with zipfile.ZipFile(buf, "w") as archive:
             archive.writestr("Payload/SewLens.app/Info.plist", plistlib.dumps(plist))
             for lang in langs:
                 folder = pt_folder if lang == "pt-BR" else f"{lang}.lproj"
-                archive.writestr(
-                    f"Payload/SewLens.app/{folder}/InfoPlist.strings",
-                    'CFBundleDisplayName = "SewLens";\n',
-                )
+                strings = {"CFBundleDisplayName": "SewLens", **usage}
+                if lang == "de" and not de_camera:
+                    del strings["NSCameraUsageDescription"]
+                if lang == "fr":
+                    body = "".join(f'{key} = "{value}";\n' for key, value in strings.items()).encode("utf-8")
+                else:
+                    body = plistlib.dumps(strings, fmt=plistlib.FMT_BINARY)
+                archive.writestr(f"Payload/SewLens.app/{folder}/InfoPlist.strings", body)
         tmp = Path(tempfile.mkdtemp()) / "SewLens.ipa"
         tmp.write_bytes(buf.getvalue())
         return tmp
@@ -113,6 +151,18 @@ def self_test() -> int:
     if not any("ja" in error for error in errors):
         print("self-test expected missing ja to fail:", errors, file=sys.stderr)
         return 1
+    no_camera = build(True, "pt-BR.lproj", de_camera=False)
+    errors = check_ipa(no_camera)
+    if errors != ["Payload/SewLens.app/de.lproj/InfoPlist.strings missing NSCameraUsageDescription"]:
+        print("self-test expected missing de camera text to fail:", errors, file=sys.stderr)
+        return 1
+    for lang in LANGS:
+        source = Path(__file__).resolve().parents[1] / "ios" / "InfoPlist" / f"{lang}.lproj" / "InfoPlist.strings"
+        keys = strings_keys(source.read_bytes())
+        absent = [key for key in USAGE_KEYS if key not in keys]
+        if absent:
+            print(f"{source} missing {', '.join(absent)}", file=sys.stderr)
+            return 1
     print("check_ipa_l10n self-test OK")
     return 0
 

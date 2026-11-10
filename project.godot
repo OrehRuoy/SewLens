@@ -13,17 +13,18 @@ config_version=5
 config/name="SewLens"
 config/version="1.0.0"
 run/main_scene="res://scenes/main.tscn"
+config/quit_on_go_back=false
 config/features=PackedStringArray("4.6", "Mobile")
 boot_splash/bg_color=Color(0.109804, 0.227451, 0.360784, 1)
+boot_splash/image="res://assets/branding/splash.png"
 config/icon="res://assets/icon.png"
 
 [autoload]
 
 LocaleService="*res://scripts/autoload/locale_service.gd"
-
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/sewlens_firebase_config/plugin.cfg")
+Profile="*res://scripts/autoload/profile.gd"
+NativeBridge="*res://scripts/autoload/native_bridge.gd"
+Billing="*res://scripts/autoload/billing.gd"
 
 [display]
 
@@ -33,10 +34,17 @@ window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=1
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/sewlens_firebase_config/plugin.cfg", "res://addons/sewlens_android/plugin.cfg")
+
+[gui]
+
+theme/custom="res://assets/theme/sewlens_theme.tres"
+
 [internationalization]
 
 locale/translations=PackedStringArray("res://i18n/strings.en.translation", "res://i18n/strings.de.translation", "res://i18n/strings.fr.translation", "res://i18n/strings.es.translation", "res://i18n/strings.pt_BR.translation", "res://i18n/strings.ja.translation", "res://i18n/strings.it.translation", "res://i18n/strings.nl.translation")
-locale/fallback="en"
 
 [rendering]
 

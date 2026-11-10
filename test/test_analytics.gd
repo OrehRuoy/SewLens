@@ -1,0 +1,156 @@
+extends GutTest
+## Funnel events carry a locale, a language change redraws the screen,
+## and the review prompt appears after the second pattern.
+
+const Fixture := preload("res://test/support/screen_fixture.gd")
+const MockTransport := preload("res://test/support/mock_transport.gd")
+
+
+func before_each() -> void:
+	NativeBridge.events.clear()
+	Fixture.prepare_profile()
+	Profile.successful_patterns = 0
+	Profile.set_language("")
+	Profile.set_large_text(false)
+	TranslationServer.set_locale("en")
+
+
+func after_each() -> void:
+	Profile.set_language("")
+	Profile.set_large_text(false)
+	TranslationServer.set_locale("en")
+	Fixture.restore_profile()
+
+
+func test_funnel_events_include_locale() -> void:
+	var main := Fixture.make_main(self)
+	main.go("onboarding", {}, true)
+	(main.find_child("SkipButton", true, false) as Button).pressed.emit()
+	_assert_event("onboarding_done")
+	main.session = Fixture.session()
+	main.go("measure", {"keys": ["chest"], "then": "back"})
+	(main.current().find_child("NextButton", true, false) as Button).pressed.emit()
+	_assert_event("measure_done")
+	main.go("home", {}, true)
+	(main.find_child("SampleButton", true, false) as Button).pressed.emit()
+	_assert_event("photo_submitted", {"source": "sample"})
+	var api := ApiClient.new()
+	var transport := MockTransport.new()
+	api.transport = transport
+	api.install_path = "user://test_analytics_install"
+	add_child_autofree(api)
+	transport.queue_result({"design": "aaron", "designName": "Aaron", "options": {}, "locale": "en", "latency_ms": 4})
+	var picked: Dictionary = await api.pick_design(PackedByteArray([1]), "image/jpeg")
+	assert_true(picked.ok)
+	_assert_event("pick_design", {"design": "aaron"})
+	transport.queue_result({"design": "aaron", "paper": "a4", "svg": "", "labels": {"pieces": []}, "yardage": [], "latency_ms": 5})
+	var drafted: Dictionary = await api.draft_pattern("aaron", {"chest": 1000.0}, {}, "cm", "A4")
+	assert_true(drafted.ok)
+	_assert_event("pattern_drafted", {"design": "aaron"})
+	main.session = Fixture.session()
+	main.go("fit", {}, true)
+	(main.find_child("Fit_chest_tight", true, false) as Button).pressed.emit()
+	_assert_event("fit_feedback", {"complaint": "chest_tight"})
+	main.queue_free()
+
+
+func test_a_purchase_event_includes_the_product() -> void:
+	var store := _Store.new()
+	store.purchase_result = {"ok": true, "productId": "orehruoy.sewlens.credit", "transactionId": "tx-1"}
+	Billing.store = store
+	var api := ApiClient.new()
+	var transport := MockTransport.new()
+	api.transport = transport
+	api.install_path = "user://test_analytics_install"
+	add_child_autofree(api)
+	transport.queue_result({"patternCount": 1, "credits": 1, "unlimited": false})
+	var result: Dictionary = await Billing.buy("orehruoy.sewlens.credit", api)
+	assert_true(result.ok)
+	_assert_event("purchase", {"product": "orehruoy.sewlens.credit"})
+	Billing.store = Billing.get_node_or_null("NativeStore")
+
+
+func test_language_switch_rerenders_the_open_screen() -> void:
+	var main := Fixture.make_main(self)
+	Fixture.open(main, ["home", {}])
+	Profile.set_language("de")
+	main.reload_current()
+	await get_tree().process_frame
+	var texts := Fixture.visible_texts(main)
+	assert_has(texts, "Schnittmuster erstellen")
+	for text in texts:
+		assert_eq(Fixture.looks_like_key(text), false, text)
+	main.queue_free()
+
+
+func test_review_prompt_appears_after_the_second_pattern() -> void:
+	var main := Fixture.make_main(self)
+	main.session = Fixture.session()
+	main.session.erase("draft")
+	var draft := {"design": "aaron", "paper": "a4", "svg": "", "labels": {"pieces": []}, "yardage": []}
+	main.api.transport.queue_result(draft)
+	main.api.transport.queue_result(draft)
+	main.go("draft", {"autostart": true}, true)
+	await _frames(6)
+	assert_null(main.find_child("ReviewCard", true, false))
+	var screen: Screen = main.current()
+	screen._start()
+	await _frames(6)
+	assert_not_null(main.find_child("ReviewCard", true, false))
+	assert_has(Fixture.visible_texts(main), "Enjoying SewLens?")
+	assert_eq(Profile.successful_patterns, 2)
+	main.queue_free()
+
+
+func test_licenses_keep_the_english_mit_notice() -> void:
+	Profile.set_language("fr")
+	var main := Fixture.make_main(self)
+	Fixture.open(main, ["licenses", {}])
+	var texts := Fixture.visible_texts(main)
+	assert_has(texts, "Basé sur FreeSewing")
+	assert_has(texts, "Licences open source")
+	var notice := ""
+	for text in texts:
+		if "MIT License" in text:
+			notice = text
+	assert_true(notice.contains("Permission is hereby granted"))
+	assert_true(notice.contains("FreeSewing"))
+	var font_notice := ""
+	for text in texts:
+		if "SIL Open Font License" in text:
+			font_notice = text
+	assert_true(font_notice.contains("Copyright 2022 The Noto Project Authors"))
+	assert_true(font_notice.contains("SIL OPEN FONT LICENSE Version 1.1"))
+	assert_true(font_notice.contains("THE FONT SOFTWARE IS PROVIDED"))
+	main.queue_free()
+
+
+func _assert_event(event_name: String, expected: Dictionary = {}) -> void:
+	var found := false
+	for event in NativeBridge.events:
+		if str(event.get("name", "")) != event_name:
+			continue
+		found = true
+		var params: Dictionary = event.get("params", {})
+		assert_eq(str(params.get("locale", "")), "en")
+		for key in expected:
+			assert_eq(params.get(key), expected[key])
+	assert_true(found, event_name)
+
+
+func _frames(count: int) -> void:
+	for _index in count:
+		await get_tree().process_frame
+
+
+class _Store:
+	extends RefCounted
+	var purchase_result := {"ok": false}
+	func load_prices() -> Dictionary:
+		return {"ok": false}
+	func purchase(_product_id: String) -> Dictionary:
+		return purchase_result
+	func restore() -> Dictionary:
+		return {"ok": true, "receipts": []}
+	func finish(_transaction_id: String) -> void:
+		pass

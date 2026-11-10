@@ -1,0 +1,925 @@
+{
+  "categories": [
+    "tops",
+    "bottoms",
+    "accessories",
+    "blocks"
+  ],
+  "designs": {
+    "aaron": {
+      "category": "tops",
+      "measurements": [
+        "biceps",
+        "chest",
+        "hips",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "neck",
+        "shoulderSlope",
+        "shoulderToShoulder",
+        "waistToArmpit",
+        "waistToHips"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": 0,
+          "max": 20,
+          "default": 8
+        },
+        {
+          "key": "hipsEase",
+          "min": 0,
+          "max": 20,
+          "default": 8
+        },
+        {
+          "key": "lengthBonus",
+          "min": -20,
+          "max": 60,
+          "default": 10
+        }
+      ]
+    },
+    "bella": {
+      "category": "blocks",
+      "measurements": [
+        "biceps",
+        "bustSpan",
+        "chest",
+        "highBust",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "hpsToWaistFront",
+        "neck",
+        "shoulderSlope",
+        "shoulderToShoulder",
+        "shoulderToWrist",
+        "underbust",
+        "waist",
+        "waistBack",
+        "waistToArmpit",
+        "wrist"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": 5,
+          "max": 20,
+          "default": 11
+        },
+        {
+          "key": "waistEase",
+          "min": 1,
+          "max": 20,
+          "default": 5
+        },
+        {
+          "key": "bicepsEase",
+          "min": 0,
+          "max": 50,
+          "default": 15
+        },
+        {
+          "key": "sleeveLengthBonus",
+          "min": -40,
+          "max": 10,
+          "default": 0
+        }
+      ]
+    },
+    "bent": {
+      "category": "blocks",
+      "measurements": [
+        "biceps",
+        "chest",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "neck",
+        "shoulderSlope",
+        "shoulderToElbow",
+        "shoulderToShoulder",
+        "shoulderToWrist",
+        "waistToArmpit",
+        "waistToHips",
+        "wrist"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": -4,
+          "max": 20,
+          "default": 8
+        },
+        {
+          "key": "bicepsEase",
+          "min": 10,
+          "max": 40,
+          "default": 20
+        },
+        {
+          "key": "lengthBonus",
+          "min": -4,
+          "max": 60,
+          "default": 0
+        },
+        {
+          "key": "sleeveLengthBonus",
+          "min": -20,
+          "max": 15,
+          "default": 0
+        }
+      ]
+    },
+    "brian": {
+      "category": "blocks",
+      "measurements": [
+        "biceps",
+        "chest",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "neck",
+        "shoulderSlope",
+        "shoulderToShoulder",
+        "shoulderToWrist",
+        "waistToArmpit",
+        "waistToHips",
+        "wrist"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": -4,
+          "max": 35,
+          "default": 15
+        },
+        {
+          "key": "bicepsEase",
+          "min": 0,
+          "max": 50,
+          "default": 15
+        },
+        {
+          "key": "lengthBonus",
+          "min": -4,
+          "max": 60,
+          "default": 0
+        },
+        {
+          "key": "sleeveLengthBonus",
+          "min": -40,
+          "max": 10,
+          "default": 0
+        }
+      ]
+    },
+    "bruce": {
+      "category": "bottoms",
+      "measurements": [
+        "hips",
+        "upperLeg",
+        "waistToHips",
+        "waistToUpperLeg"
+      ],
+      "sliders": [
+        {
+          "key": "legBonus",
+          "min": -10,
+          "max": 20,
+          "default": 0
+        },
+        {
+          "key": "stretch",
+          "min": 5,
+          "max": 25,
+          "default": 15
+        }
+      ]
+    },
+    "charlie": {
+      "category": "bottoms",
+      "measurements": [
+        "crossSeam",
+        "crossSeamFront",
+        "knee",
+        "seat",
+        "seatBack",
+        "waist",
+        "waistBack",
+        "waistToFloor",
+        "waistToHips",
+        "waistToKnee",
+        "waistToSeat",
+        "waistToUpperLeg"
+      ],
+      "sliders": [
+        {
+          "key": "waistEase",
+          "min": 0,
+          "max": 5,
+          "default": 1
+        },
+        {
+          "key": "seatEase",
+          "min": 0,
+          "max": 10,
+          "default": 5
+        },
+        {
+          "key": "kneeEase",
+          "min": 10,
+          "max": 30,
+          "default": 15
+        },
+        {
+          "key": "lengthBonus",
+          "min": -20,
+          "max": 10,
+          "default": 2
+        }
+      ]
+    },
+    "florent": {
+      "category": "accessories",
+      "measurements": [
+        "head"
+      ],
+      "sliders": [
+        {
+          "key": "headEase",
+          "min": 0,
+          "max": 5,
+          "default": 2
+        }
+      ]
+    },
+    "hugo": {
+      "category": "tops",
+      "measurements": [
+        "biceps",
+        "chest",
+        "head",
+        "hips",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "neck",
+        "shoulderSlope",
+        "shoulderToShoulder",
+        "shoulderToWrist",
+        "waistToArmpit",
+        "waistToHips",
+        "wrist"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": 4,
+          "max": 20,
+          "default": 8
+        },
+        {
+          "key": "hipsEase",
+          "min": 4,
+          "max": 20,
+          "default": 12
+        },
+        {
+          "key": "bicepsEase",
+          "min": 0,
+          "max": 50,
+          "default": 15
+        },
+        {
+          "key": "lengthBonus",
+          "min": -4,
+          "max": 60,
+          "default": 0
+        }
+      ]
+    },
+    "jaeger": {
+      "category": "tops",
+      "measurements": [
+        "biceps",
+        "chest",
+        "hips",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "neck",
+        "shoulderSlope",
+        "shoulderToElbow",
+        "shoulderToShoulder",
+        "shoulderToWrist",
+        "waist",
+        "waistToArmpit",
+        "waistToHips",
+        "wrist"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": -4,
+          "max": 20,
+          "default": 8
+        },
+        {
+          "key": "waistEase",
+          "min": 8,
+          "max": 25,
+          "default": 14
+        },
+        {
+          "key": "hipsEase",
+          "min": 8,
+          "max": 20,
+          "default": 12
+        },
+        {
+          "key": "bicepsEase",
+          "min": 10,
+          "max": 40,
+          "default": 20
+        }
+      ]
+    },
+    "lily": {
+      "category": "bottoms",
+      "measurements": [
+        "ankle",
+        "crossSeam",
+        "crossSeamFront",
+        "heel",
+        "knee",
+        "seat",
+        "seatBack",
+        "waist",
+        "waistBack",
+        "waistToFloor",
+        "waistToHips",
+        "waistToKnee",
+        "waistToSeat",
+        "waistToUpperLeg"
+      ],
+      "sliders": [
+        {
+          "key": "waistEase",
+          "min": -20,
+          "max": 0,
+          "default": -4
+        },
+        {
+          "key": "seatEase",
+          "min": -20,
+          "max": 0,
+          "default": -4
+        },
+        {
+          "key": "kneeEase",
+          "min": -20,
+          "max": 0,
+          "default": -4
+        },
+        {
+          "key": "fabricStretch",
+          "min": 0,
+          "max": 50,
+          "default": 40
+        }
+      ]
+    },
+    "paco": {
+      "category": "bottoms",
+      "measurements": [
+        "crossSeam",
+        "crossSeamFront",
+        "heel",
+        "knee",
+        "seat",
+        "seatBack",
+        "waist",
+        "waistBack",
+        "waistToFloor",
+        "waistToHips",
+        "waistToKnee",
+        "waistToSeat",
+        "waistToUpperLeg"
+      ],
+      "sliders": [
+        {
+          "key": "waistEase",
+          "min": 0,
+          "max": 10,
+          "default": 2
+        },
+        {
+          "key": "seatEase",
+          "min": 0,
+          "max": 15,
+          "default": 5
+        },
+        {
+          "key": "lengthBonus",
+          "min": -15,
+          "max": 10,
+          "default": 0
+        }
+      ]
+    },
+    "penelope": {
+      "category": "bottoms",
+      "measurements": [
+        "seat",
+        "waist",
+        "waistToHips",
+        "waistToKnee",
+        "waistToSeat"
+      ],
+      "sliders": [
+        {
+          "key": "waistEase",
+          "min": 0,
+          "max": 8,
+          "default": 1
+        },
+        {
+          "key": "seatEase",
+          "min": 0,
+          "max": 8,
+          "default": 1
+        },
+        {
+          "key": "lengthBonus",
+          "min": -50,
+          "max": 50,
+          "default": 0
+        }
+      ]
+    },
+    "sandy": {
+      "category": "bottoms",
+      "measurements": [
+        "hips",
+        "waist",
+        "waistToFloor",
+        "waistToHips"
+      ],
+      "sliders": [
+        {
+          "key": "lengthBonus",
+          "min": 10,
+          "max": 100,
+          "default": 50
+        }
+      ]
+    },
+    "simon": {
+      "category": "tops",
+      "measurements": [
+        "biceps",
+        "chest",
+        "hips",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "neck",
+        "shoulderSlope",
+        "shoulderToShoulder",
+        "shoulderToWrist",
+        "waist",
+        "waistToArmpit",
+        "waistToHips",
+        "wrist"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": -4,
+          "max": 35,
+          "default": 15
+        },
+        {
+          "key": "waistEase",
+          "min": 10,
+          "max": 35,
+          "default": 15
+        },
+        {
+          "key": "hipsEase",
+          "min": 10,
+          "max": 35,
+          "default": 15
+        },
+        {
+          "key": "bicepsEase",
+          "min": 0,
+          "max": 50,
+          "default": 15
+        }
+      ]
+    },
+    "simone": {
+      "category": "tops",
+      "measurements": [
+        "biceps",
+        "bustSpan",
+        "chest",
+        "highBust",
+        "hips",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "neck",
+        "shoulderSlope",
+        "shoulderToShoulder",
+        "shoulderToWrist",
+        "waist",
+        "waistToArmpit",
+        "waistToHips",
+        "wrist"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": -4,
+          "max": 35,
+          "default": 15
+        },
+        {
+          "key": "waistEase",
+          "min": 10,
+          "max": 35,
+          "default": 15
+        },
+        {
+          "key": "hipsEase",
+          "min": 10,
+          "max": 35,
+          "default": 15
+        },
+        {
+          "key": "bicepsEase",
+          "min": 0,
+          "max": 50,
+          "default": 15
+        }
+      ]
+    },
+    "teagan": {
+      "category": "tops",
+      "measurements": [
+        "biceps",
+        "chest",
+        "hips",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "neck",
+        "shoulderSlope",
+        "shoulderToShoulder",
+        "shoulderToWrist",
+        "waist",
+        "waistToArmpit",
+        "waistToHips",
+        "wrist"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": 5,
+          "max": 25,
+          "default": 12
+        },
+        {
+          "key": "waistEase",
+          "min": 8,
+          "max": 40,
+          "default": 25
+        },
+        {
+          "key": "hipsEase",
+          "min": 8,
+          "max": 30,
+          "default": 18
+        },
+        {
+          "key": "lengthBonus",
+          "min": -20,
+          "max": 60,
+          "default": 15
+        }
+      ]
+    },
+    "titan": {
+      "category": "blocks",
+      "measurements": [
+        "crossSeam",
+        "crossSeamFront",
+        "knee",
+        "seat",
+        "seatBack",
+        "waist",
+        "waistBack",
+        "waistToFloor",
+        "waistToHips",
+        "waistToKnee",
+        "waistToSeat",
+        "waistToUpperLeg"
+      ],
+      "sliders": [
+        {
+          "key": "waistEase",
+          "min": 0,
+          "max": 10,
+          "default": 2
+        },
+        {
+          "key": "seatEase",
+          "min": 0,
+          "max": 10,
+          "default": 2
+        },
+        {
+          "key": "kneeEase",
+          "min": 1,
+          "max": 25,
+          "default": 6
+        },
+        {
+          "key": "lengthBonus",
+          "min": -20,
+          "max": 10,
+          "default": 2
+        }
+      ]
+    },
+    "trayvon": {
+      "category": "accessories",
+      "measurements": [
+        "hpsToWaistBack",
+        "neck",
+        "waistToHips"
+      ],
+      "sliders": [
+        {
+          "key": "lengthBonus",
+          "min": -50,
+          "max": 50,
+          "default": 0
+        }
+      ]
+    },
+    "umbra": {
+      "category": "bottoms",
+      "measurements": [
+        "crossSeam",
+        "crossSeamFront",
+        "hips",
+        "seat",
+        "waist",
+        "waistToHips",
+        "waistToSeat"
+      ],
+      "sliders": [
+        {
+          "key": "xStretch",
+          "min": 0,
+          "max": 75,
+          "default": 15
+        }
+      ]
+    },
+    "wahid": {
+      "category": "tops",
+      "measurements": [
+        "biceps",
+        "chest",
+        "hips",
+        "hpsToBust",
+        "hpsToWaistBack",
+        "neck",
+        "shoulderSlope",
+        "shoulderToShoulder",
+        "waist",
+        "waistToArmpit",
+        "waistToHips"
+      ],
+      "sliders": [
+        {
+          "key": "chestEase",
+          "min": 1,
+          "max": 10,
+          "default": 2
+        },
+        {
+          "key": "waistEase",
+          "min": 2,
+          "max": 15,
+          "default": 8
+        },
+        {
+          "key": "hipsEase",
+          "min": 2,
+          "max": 15,
+          "default": 8
+        },
+        {
+          "key": "lengthBonus",
+          "min": 0,
+          "max": 8,
+          "default": 1
+        }
+      ]
+    }
+  },
+  "measurements": {
+    "ankle": {
+      "kind": "length",
+      "min": 150,
+      "max": 400,
+      "typical": 240
+    },
+    "biceps": {
+      "kind": "length",
+      "min": 150,
+      "max": 600,
+      "typical": 310
+    },
+    "bustSpan": {
+      "kind": "length",
+      "min": 100,
+      "max": 300,
+      "typical": 190
+    },
+    "chest": {
+      "kind": "length",
+      "min": 550,
+      "max": 1700,
+      "typical": 1000
+    },
+    "crossSeam": {
+      "kind": "length",
+      "min": 450,
+      "max": 1200,
+      "typical": 760
+    },
+    "crossSeamFront": {
+      "kind": "length",
+      "min": 200,
+      "max": 600,
+      "typical": 360
+    },
+    "head": {
+      "kind": "length",
+      "min": 420,
+      "max": 680,
+      "typical": 570
+    },
+    "heel": {
+      "kind": "length",
+      "min": 220,
+      "max": 420,
+      "typical": 320
+    },
+    "highBust": {
+      "kind": "length",
+      "min": 600,
+      "max": 1600,
+      "typical": 920
+    },
+    "hips": {
+      "kind": "length",
+      "min": 550,
+      "max": 1700,
+      "typical": 950
+    },
+    "hpsToBust": {
+      "kind": "length",
+      "min": 140,
+      "max": 420,
+      "typical": 260
+    },
+    "hpsToWaistBack": {
+      "kind": "length",
+      "min": 280,
+      "max": 620,
+      "typical": 440
+    },
+    "hpsToWaistFront": {
+      "kind": "length",
+      "min": 300,
+      "max": 680,
+      "typical": 460
+    },
+    "knee": {
+      "kind": "length",
+      "min": 220,
+      "max": 600,
+      "typical": 380
+    },
+    "neck": {
+      "kind": "length",
+      "min": 250,
+      "max": 560,
+      "typical": 370
+    },
+    "seat": {
+      "kind": "length",
+      "min": 650,
+      "max": 1800,
+      "typical": 1000
+    },
+    "seatBack": {
+      "kind": "length",
+      "min": 320,
+      "max": 950,
+      "typical": 500
+    },
+    "shoulderSlope": {
+      "kind": "degree",
+      "min": 3,
+      "max": 30,
+      "typical": 13
+    },
+    "shoulderToElbow": {
+      "kind": "length",
+      "min": 220,
+      "max": 480,
+      "typical": 350
+    },
+    "shoulderToShoulder": {
+      "kind": "length",
+      "min": 280,
+      "max": 580,
+      "typical": 430
+    },
+    "shoulderToWrist": {
+      "kind": "length",
+      "min": 420,
+      "max": 800,
+      "typical": 600
+    },
+    "underbust": {
+      "kind": "length",
+      "min": 500,
+      "max": 1500,
+      "typical": 780
+    },
+    "upperLeg": {
+      "kind": "length",
+      "min": 350,
+      "max": 950,
+      "typical": 580
+    },
+    "waist": {
+      "kind": "length",
+      "min": 450,
+      "max": 1600,
+      "typical": 800
+    },
+    "waistBack": {
+      "kind": "length",
+      "min": 220,
+      "max": 800,
+      "typical": 400
+    },
+    "waistToArmpit": {
+      "kind": "length",
+      "min": 130,
+      "max": 380,
+      "typical": 230
+    },
+    "waistToFloor": {
+      "kind": "length",
+      "min": 750,
+      "max": 1300,
+      "typical": 1050
+    },
+    "waistToHips": {
+      "kind": "length",
+      "min": 20,
+      "max": 220,
+      "typical": 110
+    },
+    "waistToKnee": {
+      "kind": "length",
+      "min": 420,
+      "max": 720,
+      "typical": 580
+    },
+    "waistToSeat": {
+      "kind": "length",
+      "min": 100,
+      "max": 320,
+      "typical": 200
+    },
+    "waistToUpperLeg": {
+      "kind": "length",
+      "min": 180,
+      "max": 420,
+      "typical": 280
+    },
+    "wrist": {
+      "kind": "length",
+      "min": 110,
+      "max": 260,
+      "typical": 170
+    }
+  }
+}

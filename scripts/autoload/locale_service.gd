@@ -10,10 +10,12 @@ const LETTER_REGIONS: PackedStringArray = ["US", "CA", "MX", "PH", "CL", "CO", "
 
 var units_override: String = ""
 var paper_override: String = ""
+## Stands in for the OS locale when set (tests and screenshots of other regions).
+var device_locale: String = ""
 
 
 func current_locale() -> String:
-	return OS.get_locale()
+	return device_locale if device_locale != "" else OS.get_locale()
 
 
 func units() -> String:
@@ -42,6 +44,16 @@ func paper_for(locale: String) -> String:
 	if parts.size() >= 2 and parts[1].to_upper() in LETTER_REGIONS:
 		return "Letter"
 	return "A4"
+
+
+## "" follows the device. Otherwise one of the eight app languages.
+func apply_language() -> void:
+	var chosen := Profile.language_override
+	if chosen == "":
+		var device := current_locale()
+		TranslationServer.set_locale(device if device != "" else "en")
+	else:
+		TranslationServer.set_locale(chosen)
 
 
 func _split_locale(locale: String) -> PackedStringArray:

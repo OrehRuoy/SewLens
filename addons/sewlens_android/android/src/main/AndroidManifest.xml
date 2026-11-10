@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <meta-data
+            android:name="org.godotengine.plugin.v2.SewLensAnalytics"
+            android:value="app.sewlens.analytics.SewLensAnalytics" />
+        <meta-data
+            android:name="org.godotengine.plugin.v2.SewLensNative"
+            android:value="app.sewlens.nativebridge.SewLensNative" />
+    </application>
+</manifest>

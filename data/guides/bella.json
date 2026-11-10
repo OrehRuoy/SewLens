@@ -1,0 +1,11 @@
+{
+  "steps": [
+    "guide_step_square",
+    "guide_step_grain",
+    "guide_step_cut",
+    "guide_step_block"
+  ],
+  "notes": [
+    "guide_note_bella"
+  ]
+}

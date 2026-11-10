@@ -2,3 +2,5 @@
 
 CFBundleDisplayName = "SewLens";
 CFBundleName = "SewLens";
+NSCameraUsageDescription = "服を撮影していちばん近い型紙を見つけるためにカメラを使います。写真は分析のみに使われ、保存されません。";
+NSPhotoLibraryUsageDescription = "服の写真を選んでいちばん近い型紙を見つけるために写真を開きます。写真は分析のみに使われ、保存されません。";

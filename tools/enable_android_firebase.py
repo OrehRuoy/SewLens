@@ -127,7 +127,50 @@ if (enableGoogleServices) {{
     path.write_text(text.replace(needle, insert, 1), encoding="utf-8", newline="\n")
 
 
-def main() -> int:
+CRASHLYTICS_SETTINGS = "        id 'com.google.firebase.crashlytics' version '3.0.3' apply false\n"
+CRASHLYTICS_APPLY = "    apply plugin: 'com.google.firebase.crashlytics'\n"
+
+
+def patch_crashlytics(settings: Path, build: Path) -> None:
+    stext = settings.read_text(encoding="utf-8")
+    if "com.google.firebase.crashlytics" not in stext:
+        needle = "id 'com.google.gms.google-services' version '4.4.4'\n"
+        if needle not in stext:
+            raise SystemExit(f"google-services plugin line missing: {settings}")
+        stext = stext.replace(needle, needle + CRASHLYTICS_SETTINGS, 1)
+        settings.write_text(stext, encoding="utf-8", newline="\n")
+    btext = build.read_text(encoding="utf-8")
+    if "com.google.firebase.crashlytics" not in btext:
+        needle = "    apply plugin: 'com.google.gms.google-services'\n"
+        if needle not in btext:
+            raise SystemExit(f"google-services apply line missing: {build}")
+        btext = btext.replace(needle, needle + CRASHLYTICS_APPLY, 1)
+        build.write_text(btext, encoding="utf-8", newline="\n")
+
+
+def self_test() -> int:
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        settings = root / "settings.gradle"
+        build = root / "build.gradle"
+        settings.write_text("id 'com.google.gms.google-services' version '4.4.4'\n", encoding="utf-8")
+        build.write_text("    apply plugin: 'com.google.gms.google-services'\n", encoding="utf-8")
+        patch_crashlytics(settings, build)
+        patch_crashlytics(settings, build)
+        stext = settings.read_text(encoding="utf-8")
+        btext = build.read_text(encoding="utf-8")
+        if stext.count("com.google.firebase.crashlytics") != 1 or btext.count("apply plugin: 'com.google.firebase.crashlytics'") != 1:
+            print("self-test failed to add Crashlytics once", file=sys.stderr)
+            return 1
+    print("enable_android_firebase crashlytics self-test OK")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv if argv is None else argv)
+    if "--self-test" in args:
+        return self_test()
     if not BUILD.is_dir():
         print("missing android/build; install the Android build template first", file=sys.stderr)
         return 1
@@ -143,9 +186,10 @@ def main() -> int:
     patch_settings(BUILD / "settings.gradle")
     patch_config(BUILD / "config.gradle")
     patch_build(BUILD / "build.gradle")
+    patch_crashlytics(BUILD / "settings.gradle", BUILD / "build.gradle")
     print(f"Firebase Android config wired for {PACKAGE}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv))

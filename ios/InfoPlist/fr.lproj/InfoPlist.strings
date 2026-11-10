@@ -2,3 +2,5 @@
 
 CFBundleDisplayName = "SewLens";
 CFBundleName = "SewLens";
+NSCameraUsageDescription = "SewLens utilise l'appareil photo pour photographier un vêtement et trouver le patron de couture le plus proche. La photo est analysée et n'est pas conservée.";
+NSPhotoLibraryUsageDescription = "SewLens ouvre vos photos pour que vous choisissiez un vêtement et trouviez le patron de couture le plus proche. La photo est analysée et n'est pas conservée.";

@@ -2,3 +2,5 @@
 
 CFBundleDisplayName = "SewLens";
 CFBundleName = "SewLens";
+NSCameraUsageDescription = "SewLens uses the camera to photograph a garment and find the closest sewing pattern. The photo is analysed and not stored.";
+NSPhotoLibraryUsageDescription = "SewLens opens your photos so you can choose a garment and find the closest sewing pattern. The photo is analysed and not stored.";

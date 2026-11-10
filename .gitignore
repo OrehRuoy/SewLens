@@ -2,8 +2,10 @@
 .godot/
 android/build/
 build/
+.gradle/
 *.translation
 !i18n/*.translation
+i18n/glossary.*.translation
 
 # Export output
 *.ipa
@@ -24,6 +26,12 @@ SewLens-keys/
 
 # Functions
 functions/node_modules/
+functions/.secret.local
+functions/.env*
+*.local
+firebase-debug*.log
+firestore-debug*.log
+out/
 
 # Local build plan (not part of the app repo)
 sewlens-build-plan/

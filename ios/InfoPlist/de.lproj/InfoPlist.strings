@@ -2,3 +2,5 @@
 
 CFBundleDisplayName = "SewLens";
 CFBundleName = "SewLens";
+NSCameraUsageDescription = "SewLens nutzt die Kamera, um ein Kleidungsstück zu fotografieren und das passendste Schnittmuster zu finden. Das Foto wird analysiert und nicht gespeichert.";
+NSPhotoLibraryUsageDescription = "SewLens öffnet deine Fotos, damit du ein Kleidungsstück auswählen und das passendste Schnittmuster finden kannst. Das Foto wird analysiert und nicht gespeichert.";

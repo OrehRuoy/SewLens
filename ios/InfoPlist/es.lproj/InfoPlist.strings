@@ -2,3 +2,5 @@
 
 CFBundleDisplayName = "SewLens";
 CFBundleName = "SewLens";
+NSCameraUsageDescription = "SewLens usa la cámara para fotografiar una prenda y encontrar el patrón de costura más parecido. La foto se analiza y no se guarda.";
+NSPhotoLibraryUsageDescription = "SewLens abre tus fotos para que elijas una prenda y encuentres el patrón de costura más parecido. La foto se analiza y no se guarda.";
