@@ -95,6 +95,7 @@ apply from: 'config.gradle'
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'com.google.gms.google-services' apply false
+    id 'com.google.firebase.crashlytics' apply false
 }}
 
 apply from: 'config.gradle'
@@ -127,7 +128,7 @@ if (enableGoogleServices) {{
     path.write_text(text.replace(needle, insert, 1), encoding="utf-8", newline="\n")
 
 
-CRASHLYTICS_SETTINGS = "        id 'com.google.firebase.crashlytics' version '3.0.3' apply false\n"
+CRASHLYTICS_SETTINGS = "        id 'com.google.firebase.crashlytics' version '3.0.3'\n"
 CRASHLYTICS_APPLY = "    apply plugin: 'com.google.firebase.crashlytics'\n"
 
 
@@ -140,7 +141,8 @@ def patch_crashlytics(settings: Path, build: Path) -> None:
         stext = stext.replace(needle, needle + CRASHLYTICS_SETTINGS, 1)
         settings.write_text(stext, encoding="utf-8", newline="\n")
     btext = build.read_text(encoding="utf-8")
-    if "com.google.firebase.crashlytics" not in btext:
+    # The plugins block already names Crashlytics. Match the apply line so that declaration is not treated as done.
+    if CRASHLYTICS_APPLY not in btext:
         needle = "    apply plugin: 'com.google.gms.google-services'\n"
         if needle not in btext:
             raise SystemExit(f"google-services apply line missing: {build}")
@@ -160,8 +162,25 @@ def self_test() -> int:
         patch_crashlytics(settings, build)
         stext = settings.read_text(encoding="utf-8")
         btext = build.read_text(encoding="utf-8")
-        if stext.count("com.google.firebase.crashlytics") != 1 or btext.count("apply plugin: 'com.google.firebase.crashlytics'") != 1:
+        if stext.count(CRASHLYTICS_SETTINGS) != 1 or "apply false" in stext or btext.count(CRASHLYTICS_APPLY) != 1:
             print("self-test failed to add Crashlytics once", file=sys.stderr)
+            return 1
+        stock = root / "stock.gradle"
+        stock.write_text(
+            "plugins {\n    id 'com.android.application'\n    id 'org.jetbrains.kotlin.android'\n}\n\napply from: 'config.gradle'\n\n",
+            encoding="utf-8",
+        )
+        patch_build(stock)
+        patch_build(stock)
+        patch_crashlytics(settings, stock)
+        patch_crashlytics(settings, stock)
+        patched = stock.read_text(encoding="utf-8")
+        fresh_settings = settings.read_text(encoding="utf-8")
+        if patched.count("id 'com.google.firebase.crashlytics' apply false") != 1 or patched.count(CRASHLYTICS_APPLY) != 1:
+            print("self-test failed to keep the build.gradle Crashlytics lines idempotent", file=sys.stderr)
+            return 1
+        if fresh_settings.count(CRASHLYTICS_SETTINGS) != 1:
+            print("self-test failed to keep the settings.gradle Crashlytics line idempotent", file=sys.stderr)
             return 1
     print("enable_android_firebase crashlytics self-test OK")
     return 0
