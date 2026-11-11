@@ -18,6 +18,7 @@ const SCREENS := [
 	["onboarding", {"slide": 1}],
 	["onboarding", {"slide": 2}],
 	["home", {}],
+	["consent", {}],
 	["analyze", {"autostart": false}],
 	["result", {}],
 	["designs", {}],

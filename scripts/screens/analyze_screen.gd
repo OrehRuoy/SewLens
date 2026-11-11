@@ -49,6 +49,9 @@ func _set_busy(busy: bool) -> void:
 func _start() -> void:
 	if _busy:
 		return
+	if not Profile.photo_consent:
+		_set_busy(false)
+		return
 	show_error(_error, "")
 	var path := str(session().get("photo_path", ""))
 	var bytes := FileAccess.get_file_as_bytes(path)

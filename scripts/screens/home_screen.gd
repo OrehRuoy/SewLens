@@ -98,9 +98,17 @@ func _on_photo(status: String, path: String) -> void:
 
 func _use_photo(path: String) -> void:
 	var source := "sample" if path.begins_with("res://") else _photo_source
-	NativeBridge.log_event("photo_submitted", {"source": source})
 	session().clear()
 	session().photo_path = path
+	session().photo_source = source
+	if Profile.photo_consent:
+		_send_photo()
+	else:
+		router.go("consent")
+
+
+func _send_photo() -> void:
+	NativeBridge.log_event("photo_submitted", {"source": str(session().get("photo_source", ""))})
 	router.go("analyze")
 
 

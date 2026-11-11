@@ -42,6 +42,7 @@ func test_funnel_events_include_locale() -> void:
 	(main.current().find_child("NextButton", true, false) as Button).pressed.emit()
 	_assert_event("measure_done")
 	main.go("home", {}, true)
+	Profile.photo_consent = true
 	(main.find_child("SampleButton", true, false) as Button).pressed.emit()
 	_assert_event("photo_submitted", {"source": "sample"})
 	var api := ApiClient.new()

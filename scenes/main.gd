@@ -5,6 +5,7 @@ const SCREENS := {
 	"onboarding": "res://scenes/screens/onboarding.tscn",
 	"home": "res://scenes/screens/home.tscn",
 	"analyze": "res://scenes/screens/analyze.tscn",
+	"consent": "res://scenes/screens/consent.tscn",
 	"result": "res://scenes/screens/result.tscn",
 	"designs": "res://scenes/screens/designs.tscn",
 	"measure": "res://scenes/screens/measure.tscn",

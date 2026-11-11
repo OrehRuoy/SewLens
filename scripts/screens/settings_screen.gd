@@ -108,6 +108,12 @@ func _render() -> void:
 		page.add_child(UI.group([clickety]))
 
 	page.add_child(_gap())
+	if Profile.photo_consent:
+		var withdraw := UI.list_row(tr("btn_withdraw_consent"), "lock", "")
+		withdraw.name = "WithdrawConsentButton"
+		withdraw.pressed.connect(_withdraw_consent)
+		page.add_child(UI.group([withdraw]))
+		page.add_child(_gap())
 	var card := UI.card()
 	var heading := UI.row(12)
 	heading.add_child(LineIcon.new("lock", UI.GOLD))
@@ -123,6 +129,11 @@ func _render() -> void:
 	version.mouse_filter = Control.MOUSE_FILTER_STOP
 	version.gui_input.connect(_on_version_tap)
 	page.add_child(version)
+
+
+func _withdraw_consent() -> void:
+	Profile.withdraw_photo_consent()
+	_render()
 
 
 func _on_ios() -> bool:

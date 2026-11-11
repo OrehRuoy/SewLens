@@ -21,6 +21,8 @@ var successful_patterns := 0
 ## screen; the server still decides whether a pattern can be drafted.
 var known_credits := 0
 var known_unlimited := false
+## The person agreed that a garment photo may be sent to Gemini. Withdrawn consent is false.
+var photo_consent := false
 
 
 func _ready() -> void:
@@ -37,6 +39,7 @@ func load_profile() -> void:
 	successful_patterns = 0
 	known_credits = 0
 	known_unlimited = false
+	photo_consent = false
 	if FileAccess.file_exists(path):
 		var json := JSON.new()
 		if json.parse(FileAccess.get_file_as_string(path)) == OK and typeof(json.data) == TYPE_DICTIONARY:
@@ -67,6 +70,7 @@ func to_dict() -> Dictionary:
 		"successfulPatterns": successful_patterns,
 		"knownCredits": known_credits,
 		"knownUnlimited": known_unlimited,
+		"photoConsent": photo_consent,
 	}
 
 
@@ -116,6 +120,16 @@ func note_successful_pattern() -> int:
 	return successful_patterns
 
 
+func accept_photo_consent() -> void:
+	photo_consent = true
+	save()
+
+
+func withdraw_photo_consent() -> void:
+	photo_consent = false
+	save()
+
+
 func remember_entitlement(credits: int, unlimited: bool) -> void:
 	known_credits = maxi(0, credits)
 	known_unlimited = unlimited
@@ -157,6 +171,7 @@ func _apply(source: Dictionary) -> void:
 	successful_patterns = maxi(0, int(source.get("successfulPatterns", 0)))
 	known_credits = maxi(0, int(source.get("knownCredits", 0)))
 	known_unlimited = bool(source.get("knownUnlimited", false))
+	photo_consent = bool(source.get("photoConsent", false))
 
 
 func _push_overrides() -> void:
