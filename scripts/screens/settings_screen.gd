@@ -12,6 +12,8 @@ func shows_settings() -> bool:
 
 
 func enter(_params: Dictionary) -> void:
+	if not Billing.updated.is_connected(_render):
+		Billing.updated.connect(_render)
 	_render()
 
 

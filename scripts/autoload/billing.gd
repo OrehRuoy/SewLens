@@ -74,6 +74,13 @@ func note_billing_progress(loaded: Dictionary) -> void:
 	updated.emit()
 
 
+## Grants any Play purchase that is still owned. A credit is consumed only after this succeeds.
+func recover_owned(api: ApiClient) -> void:
+	if store == null:
+		return
+	await restore(api)
+
+
 func buy(product_id: String, api: ApiClient) -> Dictionary:
 	var receipt: Dictionary = await store.purchase(product_id)
 	if not receipt.get("ok", false):
@@ -110,13 +117,18 @@ func redeem(code: String, api: ApiClient) -> Dictionary:
 
 func _verify(api: ApiClient, receipt: Dictionary) -> Dictionary:
 	var result: Dictionary = await api.verify_purchase(receipt)
+	var product := str(receipt.get("productId", ""))
 	if result.get("ok", false):
 		_remember(result)
+		NativeBridge.log_event("purchase_granted", {"product": product})
 		if not bool(receipt.get("revoked", false)):
-			NativeBridge.log_event("purchase", {"product": str(receipt.get("productId", ""))})
+			NativeBridge.log_event("purchase", {"product": product})
 		var transaction := str(receipt.get("transactionId", ""))
-		if transaction != "":
+		if transaction != "" and store != null:
 			store.finish(transaction)
+	else:
+		var reason := str(result.get("message", result.get("error", "verify")))
+		NativeBridge.log_event("purchase_grant_failed", {"product": product, "error": reason.substr(0, 100)})
 	return result
 
 

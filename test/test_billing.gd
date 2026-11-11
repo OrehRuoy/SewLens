@@ -170,6 +170,34 @@ func test_pattern_credit_balance_shows_zero_three_and_unlimited() -> void:
 	main.queue_free()
 
 
+func test_settings_shows_a_credit_as_soon_as_the_grant_is_saved() -> void:
+	var main := Fixture.make_main(self)
+	Fixture.open(main, ["settings", {}])
+	await _frames(2)
+	assert_false(Fixture.visible_texts(main).has("Pattern credits left: 3"))
+	Billing._remember({"credits": 3, "unlimited": false})
+	await _frames(2)
+	assert_has(Fixture.visible_texts(main), "Pattern credits left: 3")
+	main.queue_free()
+
+
+func test_an_owned_purchase_is_granted_on_startup() -> void:
+	var main := Fixture.make_main(self)
+	store.restore_result = {"ok": true, "receipts": [{
+		"platform": "android",
+		"productId": Billing.CREDIT,
+		"purchaseToken": "token-owned",
+		"transactionId": "GPA.owned",
+	}]}
+	main.api.transport.queue_result({"patternCount": 1, "credits": 1, "unlimited": false})
+	await Billing.recover_owned(main.api)
+	assert_eq(Billing.credits, 1)
+	assert_eq(Profile.known_credits, 1)
+	assert_eq(main.api.transport.last_data().receipt.purchaseToken, "token-owned")
+	assert_eq(store.finished, ["GPA.owned"])
+	main.queue_free()
+
+
 func test_a_creator_code_is_sent_to_the_server() -> void:
 	var main := Fixture.make_main(self)
 	Fixture.open(main, ["paywall", {}])

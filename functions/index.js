@@ -2,6 +2,7 @@ import { logger } from 'firebase-functions'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import { firestorePromoStore, firestoreQuotaStore } from './src/quota-store.mjs'
+import { playPurchases } from './src/play.mjs'
 import { redeemPromo as redeem, verifyPurchase as verify } from './src/purchases.mjs'
 
 const geminiApiKey = defineSecret('GEMINI_API_KEY')
@@ -117,6 +118,7 @@ export const verifyPurchase = onCall(lightOptions, async (request) => {
     return await verify(request.data || {}, {
       appCheck: hasAppCheck(request),
       store: firestoreQuotaStore(),
+      play: playPurchases(),
       log: logEvent,
     })
   } catch (error) {

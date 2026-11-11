@@ -1,3 +1,4 @@
+import { playPurchases } from '../src/play.mjs'
 import { CREDIT_PRODUCT, UNLIMITED_PRODUCT } from '../src/products.mjs'
 import { memoryPromoStore, redeemPromo, verifyPurchase } from '../src/purchases.mjs'
 import { memoryQuotaStore, QuotaError } from '../src/quota.mjs'
@@ -46,6 +47,32 @@ describe('receipt verification', () => {
       } },
     }))
     expect(granted.unlimited).toBe(true)
+  })
+
+  test('the Play client reads a purchased order and rejects anything else', async () => {
+    const calls = []
+    const fetchImpl = async (url, options) => {
+      calls.push(String(url))
+      expect(options.headers.Authorization || options.headers['Metadata-Flavor']).toBeTruthy()
+      if (String(url).includes('metadata.google.internal')) {
+        return { ok: true, json: async () => ({ access_token: 'ya29.test' }) }
+      }
+      return { ok: true, json: async () => ({ purchaseState: 0, orderId: 'GPA.1', consumptionState: 0 }) }
+    }
+    const play = playPurchases({ fetchImpl, packageName: 'com.sewlens.app' })
+    const purchase = await play.get(CREDIT_PRODUCT, 'token-1')
+    expect(purchase).toEqual({ purchaseState: 0, orderId: 'GPA.1', revoked: false })
+    expect(calls[1]).toContain('/applications/com.sewlens.app/purchases/products/')
+    expect(calls[1]).toContain(encodeURIComponent('token-1'))
+    const canceled = playPurchases({
+      fetchImpl: async (url) => {
+        if (String(url).includes('metadata.google.internal')) {
+          return { ok: true, json: async () => ({ access_token: 'ya29.test' }) }
+        }
+        return { ok: true, json: async () => ({ purchaseState: 1, orderId: 'GPA.2' }) }
+      },
+    })
+    await expect(canceled.get(CREDIT_PRODUCT, 'token-2')).rejects.toBeInstanceOf(ReceiptError)
   })
 })
 

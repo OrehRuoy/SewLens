@@ -65,7 +65,7 @@ func log_event(event_name: String, params: Dictionary) -> void:
 	print("SewLens analytics %s %s" % [event_name, JSON.stringify(payload)])
 	if _analytics:
 		_analytics.logEvent(event_name, payload)
-		if _analytics.has_method("setCustomKey"):
+		if plugin_method_exists(_analytics, "setCustomKey"):
 			_analytics.setCustomKey("locale", str(payload.get("locale", "")))
 	if OS.has_feature("ios"):
 		_append_ios_event(event_name, payload)
@@ -83,7 +83,7 @@ func request_review() -> void:
 func test_crash() -> void:
 	if not OS.is_debug_build():
 		return
-	if _analytics and _analytics.has_method("testCrash"):
+	if _analytics and plugin_method_exists(_analytics, "testCrash"):
 		_analytics.testCrash()
 	elif OS.has_feature("ios"):
 		_send_ios_request({"action": "crash"})

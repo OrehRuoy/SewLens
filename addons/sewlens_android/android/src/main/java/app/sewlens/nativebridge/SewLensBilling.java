@@ -94,6 +94,9 @@ final class SewLensBilling implements PurchasesUpdatedListener {
                     }
                     JSONArray rows = new JSONArray();
                     for (Purchase purchase : purchases) {
+                        if (purchase.getPurchaseState() != Purchase.PurchaseState.PURCHASED) {
+                            continue;
+                        }
                         rows.put(purchaseJson(purchase));
                     }
                     try {
@@ -324,6 +327,12 @@ final class SewLensBilling implements PurchasesUpdatedListener {
             emit(reportCancelled(result));
             return;
         }
+        // Buying again while the credit is still owned. Hand that purchase back
+        // so it can be verified and granted. It is not consumed here.
+        if (code == BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED) {
+            emitOwnedPurchase(debugOf(result));
+            return;
+        }
         if (code != BillingClient.BillingResponseCode.OK || purchases == null || purchases.isEmpty()) {
             emit(report("connected", code, debugOf(result), requestedIds(), validIds(), purchases == null ? 0 : purchases.size()));
             return;
@@ -337,6 +346,34 @@ final class SewLensBilling implements PurchasesUpdatedListener {
         emit(status("error"));
     }
 
+    /** An owned purchase, used when Play says the product is already owned. */
+    private void emitOwnedPurchase(String fallback) {
+        if (client == null || !client.isReady()) {
+            emit(report("connected", BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED, fallback, requestedIds(), validIds(), 0));
+            return;
+        }
+        client.queryPurchasesAsync(
+                QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build(),
+                (result, purchases) -> {
+                    if (result.getResponseCode() == BillingClient.BillingResponseCode.OK && purchases != null) {
+                        for (Purchase purchase : purchases) {
+                            if (purchase.getPurchaseState() != Purchase.PurchaseState.PURCHASED) {
+                                continue;
+                            }
+                            if (purchase.getProducts().contains(CREDIT) || purchase.getProducts().contains(UNLIMITED)) {
+                                emit(purchaseJson(purchase).toString());
+                                return;
+                            }
+                        }
+                    }
+                    emit(report("connected", BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED, fallback, requestedIds(), validIds(), 0));
+                });
+    }
+
+    /**
+     * Called only after the server has granted the credit. Consuming earlier
+     * would drop the Play purchase before the balance exists.
+     */
     private void settle(Purchase purchase) {
         String token = purchase.getPurchaseToken();
         boolean credit = purchase.getProducts().contains(CREDIT);

@@ -75,7 +75,12 @@ func test_a_purchase_event_includes_the_product() -> void:
 	transport.queue_result({"patternCount": 1, "credits": 1, "unlimited": false})
 	var result: Dictionary = await Billing.buy("orehruoy.sewlens.credit", api)
 	assert_true(result.ok)
+	_assert_event("purchase_granted", {"product": "orehruoy.sewlens.credit"})
 	_assert_event("purchase", {"product": "orehruoy.sewlens.credit"})
+	transport.queue_error("INVALID_ARGUMENT", "Play verification is not configured", 400)
+	var failed: Dictionary = await Billing.buy("orehruoy.sewlens.credit", api)
+	assert_false(failed.ok)
+	_assert_event("purchase_grant_failed", {"product": "orehruoy.sewlens.credit", "error": "Play verification is not configured"})
 	Billing.store = Billing.get_node_or_null("NativeStore")
 
 

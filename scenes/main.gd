@@ -46,6 +46,8 @@ func _ready() -> void:
 	_apply_safe_area()
 	apply_text_size()
 	go("home" if Profile.onboarded else "onboarding", {}, true)
+	if OS.has_feature("android") or OS.get_name() == "Android":
+		Billing.recover_owned(api)
 
 
 func _notification(what: int) -> void:
