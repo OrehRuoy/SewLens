@@ -2,6 +2,10 @@ extends Screen
 ## Language, text size, units and paper overrides, purchases, the intro,
 ## licenses, legal links and the privacy summary, in grouped sections.
 
+const CLICKETY_URL := "https://apps.apple.com/us/app/clickety-knitting-row-counter/id6817437890"
+## Tests set this to true or false. Left unset, the row follows the iOS export feature.
+static var ios_for_test: Variant = null
+
 
 func title_key() -> String:
 	return "title_settings"
@@ -95,6 +99,14 @@ func _render() -> void:
 	terms.pressed.connect(func() -> void: NativeBridge.open_url(UI.TERMS_URL))
 	page.add_child(UI.group([intro, licenses, privacy, terms]))
 
+	if _on_ios():
+		page.add_child(_gap())
+		page.add_child(UI.section(tr("section_also_by_me")))
+		var clickety := UI.list_row(tr("btn_clickety"), "globe", "")
+		clickety.name = "ClicketyButton"
+		clickety.pressed.connect(func() -> void: NativeBridge.open_url(CLICKETY_URL))
+		page.add_child(UI.group([clickety]))
+
 	page.add_child(_gap())
 	var card := UI.card()
 	var heading := UI.row(12)
@@ -111,6 +123,12 @@ func _render() -> void:
 	version.mouse_filter = Control.MOUSE_FILTER_STOP
 	version.gui_input.connect(_on_version_tap)
 	page.add_child(version)
+
+
+func _on_ios() -> bool:
+	if ios_for_test != null:
+		return bool(ios_for_test)
+	return OS.has_feature("ios")
 
 
 func _gap() -> Control:

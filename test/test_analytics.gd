@@ -28,6 +28,7 @@ func after_each() -> void:
 	Profile.set_language("")
 	Profile.set_large_text(false)
 	TranslationServer.set_locale("en")
+	load("res://scripts/screens/settings_screen.gd").ios_for_test = null
 	Fixture.restore_profile()
 
 
@@ -52,9 +53,11 @@ func test_funnel_events_include_locale() -> void:
 	var picked: Dictionary = await api.pick_design(PackedByteArray([1]), "image/jpeg")
 	assert_true(picked.ok)
 	_assert_event("pick_design", {"design": "aaron"})
-	transport.queue_result({"design": "aaron", "paper": "a4", "svg": "", "labels": {"pieces": []}, "yardage": [], "latency_ms": 5})
-	var drafted: Dictionary = await api.draft_pattern("aaron", {"chest": 1000.0}, {}, "cm", "A4")
-	assert_true(drafted.ok)
+	main.session = Fixture.session()
+	main.session.erase("draft")
+	main.api.transport.queue_result({"design": "aaron", "paper": "a4", "svg": "", "labels": {"pieces": []}, "yardage": [], "latency_ms": 5})
+	main.go("draft", {"autostart": true}, true)
+	await _frames(6)
 	_assert_event("pattern_drafted", {"design": "aaron"})
 	main.session = Fixture.session()
 	main.go("fit", {}, true)
@@ -240,6 +243,45 @@ func test_review_prompt_appears_after_the_second_pattern() -> void:
 	main.queue_free()
 
 
+func test_pattern_drafted_fires_on_success_and_not_on_failure_or_a_saved_draft() -> void:
+	var main := Fixture.make_main(self)
+	main.session = Fixture.session()
+	main.session.erase("draft")
+	main.api.transport.queue_error("UNAVAILABLE", "down", 503)
+	main.go("draft", {"autostart": true}, true)
+	await _frames(6)
+	_assert_no_event("pattern_drafted")
+	main.api.transport.queue_result({"design": "aaron", "paper": "a4", "svg": "", "labels": {"pieces": []}, "yardage": []})
+	(main.find_child("RetryButton", true, false) as Button).pressed.emit()
+	await _frames(6)
+	_assert_event("pattern_drafted", {"design": "aaron"})
+	NativeBridge.events.clear()
+	main.go("draft", {}, true)
+	await _frames(2)
+	_assert_no_event("pattern_drafted")
+	main.queue_free()
+
+
+func test_the_clickety_row_shows_only_on_ios() -> void:
+	var settings = load("res://scripts/screens/settings_screen.gd")
+	var main := Fixture.make_main(self)
+	settings.ios_for_test = false
+	Fixture.open(main, ["settings", {}])
+	assert_null(main.find_child("ClicketyButton", true, false))
+	settings.ios_for_test = true
+	main.go("settings", {}, true)
+	await get_tree().process_frame
+	var button := main.find_child("ClicketyButton", true, false) as Button
+	assert_not_null(button)
+	assert_eq(button.text, "Clickety, knitting row counter")
+	assert_has(Fixture.visible_texts(main), "Also by me")
+	settings.ios_for_test = null
+	main.go("settings", {}, true)
+	await get_tree().process_frame
+	assert_null(main.find_child("ClicketyButton", true, false))
+	main.queue_free()
+
+
 func test_licenses_keep_the_english_mit_notice() -> void:
 	Profile.set_language("fr")
 	var main := Fixture.make_main(self)
@@ -261,6 +303,11 @@ func test_licenses_keep_the_english_mit_notice() -> void:
 	assert_true(font_notice.contains("SIL OPEN FONT LICENSE Version 1.1"))
 	assert_true(font_notice.contains("THE FONT SOFTWARE IS PROVIDED"))
 	main.queue_free()
+
+
+func _assert_no_event(event_name: String) -> void:
+	for event in NativeBridge.events:
+		assert_ne(str(event.get("name", "")), event_name)
 
 
 func _assert_event(event_name: String, expected: Dictionary = {}) -> void:

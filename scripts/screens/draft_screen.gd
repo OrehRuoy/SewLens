@@ -106,6 +106,7 @@ func _start() -> void:
 		_patterns.visible = limited
 		_limit_card.visible = limited
 		return
+	NativeBridge.log_event("pattern_drafted", {"design": str(result.get("design", design))})
 	var was_adjustment := bool(session().get("fit_adjustment", false))
 	session().draft = result
 	var adjusted = result.get("options")

@@ -64,11 +64,6 @@ func draft_pattern(design: String, measurements_mm: Dictionary, options: Diction
 	if pdf_base64 != "":
 		result.pdf_path = save_pdf(design, Marshalls.base64_to_raw(pdf_base64))
 	result.erase("pdfBase64")
-	NativeBridge.log_event("pattern_drafted", {
-		"latency_ms": result.latency_ms,
-		"design": str(result.get("design", design)),
-		"locale": str(result.get("locale", locale)),
-	})
 	return result
 
 
