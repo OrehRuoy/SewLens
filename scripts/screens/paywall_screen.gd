@@ -27,6 +27,11 @@ func enter(_params: Dictionary) -> void:
 	var heading := UI.heading(tr("pay_heading"))
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	page.add_child(heading)
+	var balance := UI.caption("")
+	balance.name = "CreditBalance"
+	balance.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	balance.visible = false
+	page.add_child(balance)
 	var body := UI.caption(tr("pay_body"))
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	page.add_child(body)
@@ -125,8 +130,14 @@ func enter(_params: Dictionary) -> void:
 
 	if not Billing.updated.is_connected(_refresh):
 		Billing.updated.connect(_refresh)
+	if not Profile.changed.is_connected(_refresh):
+		Profile.changed.connect(_refresh)
 	_refresh()
 	Billing.refresh_prices()
+
+
+func resumed() -> void:
+	_refresh()
 
 
 ## A row that moves its last item onto a new line when long text (German, Larger text) needs the width.
@@ -188,6 +199,11 @@ func _refresh() -> void:
 	if live:
 		live.text = Billing.price_diagnostic
 		live.visible = Billing.show_price_diagnostic and state == "loading" and Billing.price_diagnostic != ""
+	var balance := find_child("CreditBalance", true, false) as Label
+	if balance:
+		var balance_text := _credit_balance_text()
+		balance.text = balance_text
+		balance.visible = balance_text != ""
 	var entitlement := find_child("Entitlement", true, false) as Label
 	var text := ""
 	if Billing.unlimited:
@@ -201,6 +217,16 @@ func _refresh() -> void:
 	var unlimited_buy := find_child("BuyUnlimited", true, false) as Button
 	if Billing.unlimited:
 		unlimited_buy.disabled = true
+
+
+## Hidden on the unused free pattern when nothing has been bought.
+func _credit_balance_text() -> String:
+	if Billing.has_unlimited():
+		return tr("pay_balance_unlimited")
+	var count := Billing.pattern_credits()
+	if count == 0 and Profile.successful_patterns < 1:
+		return ""
+	return tr("pay_balance_credits") % count
 
 
 func _price(node_name: String, product_id: String) -> void:

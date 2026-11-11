@@ -116,9 +116,9 @@ func _gap() -> Control:
 
 
 func _entitlement_text() -> String:
-	if Billing.unlimited or Profile.known_unlimited:
+	if Billing.has_unlimited():
 		return tr("pay_status_unlimited")
-	var credits := maxi(Billing.credits, Profile.known_credits)
+	var credits := Billing.pattern_credits()
 	if credits > 0:
 		return tr("pay_status_credits") % credits
 	return ""

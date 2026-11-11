@@ -33,6 +33,15 @@ func price_text(product_id: String) -> String:
 	return str(prices.get(product_id, ""))
 
 
+## The balance Settings and the Patterns screen both show.
+func pattern_credits() -> int:
+	return maxi(credits, Profile.known_credits)
+
+
+func has_unlimited() -> bool:
+	return unlimited or Profile.known_unlimited
+
+
 func refresh_prices() -> void:
 	if store == null:
 		return

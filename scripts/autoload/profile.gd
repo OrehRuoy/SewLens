@@ -104,9 +104,15 @@ func set_large_text(enabled: bool) -> void:
 ## Every pattern after the free first one uses a known credit unless unlimited.
 func note_successful_pattern() -> int:
 	successful_patterns += 1
-	if successful_patterns > 1 and not known_unlimited:
-		known_credits = maxi(0, known_credits - 1)
+	var spent := false
+	if successful_patterns > 1 and not known_unlimited and not Billing.has_unlimited():
+		var balance := maxi(Billing.credits, known_credits)
+		known_credits = maxi(0, balance - 1)
+		Billing.credits = known_credits
+		spent = true
 	save()
+	if spent:
+		Billing.updated.emit()
 	return successful_patterns
 
 

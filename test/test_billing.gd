@@ -132,6 +132,44 @@ func test_unlimited_restore_and_refund() -> void:
 	main.queue_free()
 
 
+func test_pattern_credit_balance_shows_zero_three_and_unlimited() -> void:
+	var main := Fixture.make_main(self)
+	Profile.successful_patterns = 0
+	Profile.known_credits = 0
+	Profile.known_unlimited = false
+	Fixture.open(main, ["paywall", {}])
+	await _frames(2)
+	var balance := main.find_child("CreditBalance", true, false) as Label
+	assert_false(balance.visible)
+	assert_has(Fixture.visible_texts(main), "Your first pattern is free. Choose how you want to make more.")
+	Profile.successful_patterns = 1
+	Profile.save()
+	await _frames(2)
+	assert_true(balance.visible)
+	assert_eq(balance.text, "Pattern credits: 0")
+	store.purchase_result = {
+		"ok": true,
+		"platform": "android",
+		"productId": Billing.CREDIT,
+		"transactionId": "tx-three",
+		"purchaseToken": "token-three",
+	}
+	main.api.transport.queue_result({"patternCount": 1, "credits": 3, "unlimited": false})
+	(main.find_child("BuyCredit", true, false) as Button).pressed.emit()
+	await _frames(8)
+	assert_eq(balance.text, "Pattern credits: 3")
+	Profile.note_successful_pattern()
+	await _frames(2)
+	assert_eq(balance.text, "Pattern credits: 2")
+	Profile.remember_entitlement(0, true)
+	Billing.unlimited = true
+	Billing.credits = 0
+	Billing.updated.emit()
+	await _frames(2)
+	assert_eq(balance.text, "Unlimited")
+	main.queue_free()
+
+
 func test_a_creator_code_is_sent_to_the_server() -> void:
 	var main := Fixture.make_main(self)
 	Fixture.open(main, ["paywall", {}])
