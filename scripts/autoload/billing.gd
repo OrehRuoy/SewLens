@@ -14,7 +14,7 @@ var credits := 0
 var unlimited := false
 ## "idle", "loading", "ready" or "failed", so screens can show a placeholder or a retry.
 var price_state := "idle"
-## Turn this off before release. While it is on, a failed price load shows the store's own error.
+## Debug builds can show the store's own error. Release exports never do.
 var show_price_diagnostic := true
 var price_diagnostic := ""
 
@@ -31,6 +31,16 @@ func _ready() -> void:
 
 func price_text(product_id: String) -> String:
 	return str(prices.get(product_id, ""))
+
+
+## The line under "Prices unavailable", and the live stage line while prices load.
+## A release export passes debug_build false, so the line stays hidden even if the flag is on.
+static func price_diagnostic_allowed(debug_build: bool, enabled: bool, state: String, line: String, loading: bool) -> bool:
+	if not debug_build or not enabled or line == "":
+		return false
+	if loading:
+		return state == "loading"
+	return state == "failed"
 
 
 ## The balance Settings and the Patterns screen both show.

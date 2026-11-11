@@ -51,8 +51,13 @@ func is_busy() -> bool:
 	return _pending_action != ""
 
 
+## Set only by the debug screenshot capture, so store shots show the phone camera button.
+var screenshot_camera := false
+
+
 func can_use_camera() -> bool:
-	return _android != null or OS.has_feature("ios")
+	var demo_camera := screenshot_camera and OS.is_debug_build() and not OS.has_feature("template")
+	return demo_camera or _android != null or OS.has_feature("ios")
 
 
 func log_event(event_name: String, params: Dictionary) -> void:

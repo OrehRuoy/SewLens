@@ -189,7 +189,7 @@ func _refresh() -> void:
 	(find_child("PricesFailed", true, false) as Control).visible = state == "failed"
 	var diagnostic := find_child("PriceDiagnostic", true, false) as Label
 	var copy := find_child("PriceDiagnosticCopy", true, false) as Button
-	var show_detail := Billing.show_price_diagnostic and state == "failed" and Billing.price_diagnostic != ""
+	var show_detail := Billing.price_diagnostic_allowed(OS.is_debug_build(), Billing.show_price_diagnostic, state, Billing.price_diagnostic, false)
 	if diagnostic:
 		diagnostic.text = Billing.price_diagnostic
 		diagnostic.visible = show_detail
@@ -198,7 +198,7 @@ func _refresh() -> void:
 	var live := find_child("PriceStage", true, false) as Label
 	if live:
 		live.text = Billing.price_diagnostic
-		live.visible = Billing.show_price_diagnostic and state == "loading" and Billing.price_diagnostic != ""
+		live.visible = Billing.price_diagnostic_allowed(OS.is_debug_build(), Billing.show_price_diagnostic, state, Billing.price_diagnostic, true)
 	var balance := find_child("CreditBalance", true, false) as Label
 	if balance:
 		var balance_text := _credit_balance_text()

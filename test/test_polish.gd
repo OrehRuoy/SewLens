@@ -103,6 +103,31 @@ func test_a_parsed_ios_result_fills_both_prices_and_enables_buy() -> void:
 	main.queue_free()
 
 
+func test_the_price_diagnostic_is_hidden_outside_a_debug_build() -> void:
+	var line := "android · plugin_missing"
+	assert_false(Billing.price_diagnostic_allowed(false, true, "failed", line, false))
+	assert_false(Billing.price_diagnostic_allowed(false, true, "loading", line, true))
+	assert_false(Billing.price_diagnostic_allowed(false, false, "failed", line, false))
+	assert_true(Billing.price_diagnostic_allowed(true, true, "failed", line, false))
+	assert_true(Billing.price_diagnostic_allowed(true, true, "loading", line, true))
+	assert_false(Billing.price_diagnostic_allowed(true, false, "failed", line, false))
+	assert_false(Billing.price_diagnostic_allowed(true, true, "ready", line, false))
+	assert_false(Billing.price_diagnostic_allowed(true, true, "failed", "", false))
+	store.ok = false
+	Billing.show_price_diagnostic = true
+	var main := Fixture.make_main(self)
+	Fixture.open(main, ["paywall", {}])
+	await _frames(2)
+	var detail := main.find_child("PriceDiagnostic", true, false) as Label
+	var copy := main.find_child("PriceDiagnosticCopy", true, false) as Button
+	var expected: bool = Billing.price_diagnostic_allowed(OS.is_debug_build(), true, Billing.price_state, Billing.price_diagnostic, false)
+	assert_eq(detail.visible, expected)
+	assert_eq(copy.visible, expected)
+	assert_false(Billing.price_diagnostic_allowed(false, true, Billing.price_state, Billing.price_diagnostic, false))
+	assert_ne(Billing.price_diagnostic, "")
+	main.queue_free()
+
+
 func test_a_store_failure_shows_a_retry_and_no_price() -> void:
 	store.ok = false
 	var main := Fixture.make_main(self)
