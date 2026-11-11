@@ -140,6 +140,9 @@ func test_a_timeout_reports_the_last_billing_stage() -> void:
 	var line := Billing.diagnostic_line(loaded)
 	assert_true(line.begins_with("android · connecting · timeout"))
 	assert_true(line.contains("setup timeout, onBillingSetupFinished never called"))
+	var counted := Billing.timeout_result("products", {"stage": "connecting", "platform": "android", "message": "startConnection services=2"})
+	assert_eq(counted["message"], "setup timeout, onBillingSetupFinished never called (services=2)")
+	assert_true(Billing.diagnostic_line(counted).contains("services=2"))
 	var missing := {
 		"ok": false,
 		"stage": "plugin_missing",

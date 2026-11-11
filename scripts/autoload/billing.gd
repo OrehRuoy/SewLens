@@ -335,13 +335,23 @@ static func timeout_result(action: String, trace: Dictionary) -> Dictionary:
 			message = "StoreKit Product.products did not return"
 		elif stage == "response_received" and (message == "" or message.begins_with("count ")):
 			message = "StoreKit responded but the result was not parsed"
-	elif message in ["", "calling startConnection", "startConnection", "Play Billing connected", "Play Billing already connected", "queryProductDetailsAsync"]:
-		if action == "products" and stage == "connecting":
-			message = "setup timeout, onBillingSetupFinished never called"
-		elif action == "products":
-			message = "timeout after 15s waiting for the store"
-		else:
-			message = "The store did not respond"
+	else:
+		var service_note := ""
+		var services_at := message.find("services=")
+		if services_at >= 0:
+			service_note = message.substr(services_at).strip_edges()
+			message = message.substr(0, services_at).strip_edges()
+		if message in ["", "calling startConnection", "startConnection", "Play Billing connected", "Play Billing already connected", "queryProductDetailsAsync"]:
+			if action == "products" and stage == "connecting":
+				message = "setup timeout, onBillingSetupFinished never called"
+				if service_note != "":
+					message += " (" + service_note + ")"
+			elif action == "products":
+				message = "timeout after 15s waiting for the store"
+			else:
+				message = "The store did not respond"
+		elif service_note != "":
+			message = message + " " + service_note
 	return {
 		"status": "timeout",
 		"stage": stage,

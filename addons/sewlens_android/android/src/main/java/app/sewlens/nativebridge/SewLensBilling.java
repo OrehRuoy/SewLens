@@ -172,7 +172,7 @@ final class SewLensBilling implements PurchasesUpdatedListener {
             }
             return;
         }
-        emitProgress("connecting", "startConnection");
+        emitProgress("connecting", "startConnection services=" + services);
         try {
             Log.i(TAG, "startConnection calling thread=" + Thread.currentThread().getName() + " services=" + services);
             client.startConnection(new BillingClientStateListener() {

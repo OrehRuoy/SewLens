@@ -42,6 +42,14 @@ def check_sources(errors: list[str]) -> None:
     export = text(EXPORT_PLUGIN)
     require(errors, BILLING in export, f"export_plugin.gd does not package {BILLING}")
     require(errors, "_get_android_dependencies" in export, "export_plugin.gd is missing _get_android_dependencies")
+    require(errors, "_get_android_manifest_element_contents" in export, "export_plugin.gd does not inject the manifest on export")
+    require(errors, f'<package android:name=\\"com.android.vending\\"/>' in export or 'android:name=\\"com.android.vending\\"' in export, "export_plugin.gd does not inject the Play Store package query")
+    template = ROOT / "android" / "build" / "src" / "main" / "AndroidManifest.xml"
+    if template.is_file():
+        template_text = text(template)
+        require(errors, PERMISSION in template_text, "Android build template manifest is missing the BILLING permission")
+        require(errors, f'android:name="{PACKAGE}"' in template_text, "Android build template manifest is missing the Play Store package query")
+        require(errors, BIND in template_text, "Android build template manifest is missing the BIND intent")
     gradle = text(LIBRARY_GRADLE)
     require(
         errors,
@@ -109,6 +117,8 @@ def check_archive(errors: list[str], label: str, path: Path, *, want_client: boo
     if want_log:
         require(errors, "SEWLENS_BILLING" in classes, f"{label} is missing the SEWLENS_BILLING log tag")
         require(errors, "startConnection returned" in classes, f"{label} is missing the startConnection return log")
+        require(errors, "Play billing services visible" in classes, f"{label} is missing the service-count timeout text")
+        require(errors, "startConnection services=" in classes, f"{label} is missing the service count on the progress line")
 
 
 def main() -> int:

@@ -28,5 +28,11 @@ class AndroidExportPlugin extends EditorExportPlugin:
 			"com.google.android.play:review:2.0.2",
 		])
 
+	func _get_android_manifest_element_contents(_platform: EditorExportPlatform, _debug: bool) -> String:
+		# Written into src/release/AndroidManifest.xml on every Gradle export.
+		# The plugin AAR manifest is not enough: Godot replaces the release manifest
+		# and does not always merge queries from an .aar.
+		return "<uses-permission android:name=\"com.android.vending.BILLING\"/>\n<queries>\n<package android:name=\"com.android.vending\"/>\n<intent>\n<action android:name=\"com.android.vending.billing.InAppBillingService.BIND\"/>\n</intent>\n</queries>"
+
 	func _get_name() -> String:
 		return "SewLensAndroid"

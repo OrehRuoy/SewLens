@@ -150,6 +150,26 @@ def patch_crashlytics(settings: Path, build: Path) -> None:
         build.write_text(btext, encoding="utf-8", newline="\n")
 
 
+BILLING_QUERIES = """    <uses-permission android:name="com.android.vending.BILLING" />
+    <queries>
+        <package android:name="com.android.vending" />
+        <intent>
+            <action android:name="com.android.vending.billing.InAppBillingService.BIND" />
+        </intent>
+    </queries>
+"""
+
+
+def patch_billing_manifest(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    if 'android:name="com.android.vending"' in text and "InAppBillingService.BIND" in text and "com.android.vending.BILLING" in text:
+        return
+    needle = "    <application"
+    if needle not in text:
+        raise SystemExit(f"AndroidManifest.xml has no application tag: {path}")
+    path.write_text(text.replace(needle, BILLING_QUERIES + "\n" + needle, 1), encoding="utf-8", newline="\n")
+
+
 def self_test() -> int:
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:
@@ -182,6 +202,14 @@ def self_test() -> int:
         if fresh_settings.count(CRASHLYTICS_SETTINGS) != 1:
             print("self-test failed to keep the settings.gradle Crashlytics line idempotent", file=sys.stderr)
             return 1
+        manifest = root / "AndroidManifest.xml"
+        manifest.write_text("<manifest>\n    <application>\n    </application>\n</manifest>\n", encoding="utf-8")
+        patch_billing_manifest(manifest)
+        patch_billing_manifest(manifest)
+        manifest_text = manifest.read_text(encoding="utf-8")
+        if manifest_text.count('android:name="com.android.vending"') != 1 or manifest_text.count("InAppBillingService.BIND") != 1:
+            print("self-test failed to add the Play billing queries once", file=sys.stderr)
+            return 1
     print("enable_android_firebase crashlytics self-test OK")
     return 0
 
@@ -206,6 +234,7 @@ def main(argv: list[str] | None = None) -> int:
     patch_config(BUILD / "config.gradle")
     patch_build(BUILD / "build.gradle")
     patch_crashlytics(BUILD / "settings.gradle", BUILD / "build.gradle")
+    patch_billing_manifest(BUILD / "src" / "main" / "AndroidManifest.xml")
     print(f"Firebase Android config wired for {PACKAGE}")
     return 0
 
