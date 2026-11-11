@@ -64,6 +64,7 @@ func test_a_store_failure_shows_a_retry_and_no_price() -> void:
 	await _frames(2)
 	assert_eq(Billing.price_state, "failed")
 	assert_true((main.find_child("PricesFailed", true, false) as Control).visible)
+	assert_has(Fixture.visible_texts(main), "Prices unavailable, tap to retry")
 	assert_eq((main.find_child("CreditPrice", true, false) as Label).text, "—")
 	assert_true((main.find_child("BuyUnlimited", true, false) as Button).disabled)
 	store.ok = true
@@ -71,6 +72,29 @@ func test_a_store_failure_shows_a_retry_and_no_price() -> void:
 	await _frames(2)
 	assert_eq(Billing.price_state, "ready")
 	assert_false((main.find_child("PricesFailed", true, false) as Control).visible)
+	main.queue_free()
+
+
+func test_drags_scroll_past_buttons_and_sliders() -> void:
+	var main := Fixture.make_main(self)
+	Fixture.open(main, ["paywall", {}])
+	var paywall: Screen = main.current()
+	var scroll := paywall.get_child(0) as ScrollContainer
+	assert_eq(scroll.scroll_deadzone, Screen.DRAG_DEADZONE)
+	assert_eq((paywall.find_child("BuyCredit", true, false) as Button).mouse_filter, Control.MOUSE_FILTER_PASS)
+	var labels: Array = paywall.find_children("*", "Label", true, false)
+	assert_gt(labels.size(), 0)
+	assert_eq((labels[0] as Control).mouse_filter, Control.MOUSE_FILTER_IGNORE)
+	main.queue_free()
+	main = Fixture.make_main(self)
+	Fixture.open(main, ["result", {}])
+	var sliders := main.find_children("*", "HSlider", true, false)
+	assert_gt(sliders.size(), 0)
+	assert_eq((sliders[0] as HSlider).mouse_filter, Control.MOUSE_FILTER_PASS)
+	main.queue_free()
+	main = Fixture.make_main(self)
+	Fixture.open(main, ["measure", {"keys": ["chest"], "then": "back"}])
+	assert_eq((main.find_child("ValueInput", true, false) as LineEdit).mouse_filter, Control.MOUSE_FILTER_STOP)
 	main.queue_free()
 
 

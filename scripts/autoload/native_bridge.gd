@@ -12,7 +12,9 @@ const REQUEST_FILE := "sewlens_native_request.json"
 const RESULT_FILE := "sewlens_native_result.json"
 const PHOTO_FILE := "user://photo.jpg"
 const IOS_POLL_SECONDS := 0.25
-const IOS_TIMEOUT_SECONDS := 600.0
+## A price query gives up after this. Photo, share, and the store sheet use the longer wait.
+const IOS_TIMEOUT_SECONDS := 15.0
+const IOS_USER_TIMEOUT_SECONDS := 600.0
 
 var _android: Object
 var _analytics: Object
@@ -22,6 +24,7 @@ var _pending_action := ""
 var events: Array = []
 var _poll_elapsed := 0.0
 var _poll_timer: Timer
+var _ios_action := ""
 
 
 func _ready() -> void:
@@ -164,7 +167,19 @@ func billing_request(action: String, extra: Dictionary = {}) -> void:
 	_finish_billing({"status": "unavailable", "action": action})
 
 
+## Drops a store request that did not answer, so a retry can start a new one.
+func abandon_billing() -> void:
+	if _pending_action != "billing":
+		return
+	_pending_action = ""
+	_request_id += 1
+	if _poll_timer:
+		_poll_timer.stop()
+
+
 func _on_android_billing(payload_json: String) -> void:
+	if _pending_action != "billing":
+		return
 	var json := JSON.new()
 	var parsed = json.data if json.parse(payload_json) == OK else null
 	if typeof(parsed) != TYPE_DICTIONARY:
@@ -223,6 +238,7 @@ func _ios_dir() -> String:
 
 func _send_ios_request(request: Dictionary) -> void:
 	_request_id += 1
+	_ios_action = str(request.get("action", ""))
 	request.id = _request_id
 	request.result = _ios_dir().path_join(RESULT_FILE)
 	if FileAccess.file_exists(request.result):
@@ -241,11 +257,16 @@ func _send_ios_request(request: Dictionary) -> void:
 	_poll_timer.start()
 
 
+func _ios_needs_short_timeout() -> bool:
+	return _ios_action == "products"
+
+
 func _poll_ios_result() -> void:
 	_poll_elapsed += IOS_POLL_SECONDS
 	var path := _ios_dir().path_join(RESULT_FILE)
 	if not FileAccess.file_exists(path):
-		if _poll_elapsed > IOS_TIMEOUT_SECONDS:
+		var limit := IOS_TIMEOUT_SECONDS if _ios_needs_short_timeout() else IOS_USER_TIMEOUT_SECONDS
+		if _poll_elapsed > limit:
 			_fail_ios_request()
 		return
 	var json := JSON.new()

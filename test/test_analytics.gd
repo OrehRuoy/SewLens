@@ -70,6 +70,27 @@ func test_a_purchase_event_includes_the_product() -> void:
 	Billing.store = Billing.get_node_or_null("NativeStore")
 
 
+func test_paywall_and_billing_errors_are_logged() -> void:
+	var store := _Store.new()
+	Billing.store = store
+	Billing.prices = {}
+	Billing.price_state = "idle"
+	var main := Fixture.make_main(self)
+	Fixture.open(main, ["paywall", {}])
+	await _frames(2)
+	_assert_event("paywall_shown")
+	_assert_event("billing_error", {
+		"platform": Billing._store_platform(),
+		"response_code": "unavailable",
+		"message": "",
+		"product_ids": "orehruoy.sewlens.credit,orehruoy.sewlens.unlimited",
+	})
+	main.queue_free()
+	Billing.prices = {}
+	Billing.price_state = "idle"
+	Billing.store = Billing.get_node_or_null("NativeStore")
+
+
 func test_language_switch_rerenders_the_open_screen() -> void:
 	var main := Fixture.make_main(self)
 	Fixture.open(main, ["home", {}])

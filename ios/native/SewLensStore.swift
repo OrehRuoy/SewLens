@@ -8,6 +8,7 @@ import UIKit
 
 private let sewlensCredit = "orehruoy.sewlens.credit"
 private let sewlensUnlimited = "orehruoy.sewlens.unlimited"
+private let sewlensProductIds = [sewlensCredit, sewlensUnlimited]
 private let sewlensRequestName = "sewlens_native_request.json"
 private let sewlensBilling: Set<String> = ["products", "purchase", "restore", "finish", "offer"]
 
@@ -18,6 +19,13 @@ private let sewlensStoreBoot: Void = {
         }
     }
 }()
+
+// Swift globals are lazy. sln_boot in SewLensNative.m calls this, which is what
+// actually starts the poller. Without that reference the timer is never created.
+@_cdecl("sewlens_store_boot")
+public func sewlens_store_boot() {
+    _ = sewlensStoreBoot
+}
 
 enum SewLensStore {
     private static var busy = false
@@ -52,15 +60,43 @@ enum SewLensStore {
 
     private static func loadProducts(_ request: [String: Any]) async {
         do {
-            let products = try await Product.products(for: [sewlensCredit, sewlensUnlimited])
+            NSLog("SewLens StoreKit requesting products: %@", sewlensProductIds.joined(separator: ","))
+            let products = try await Product.products(for: sewlensProductIds)
+            let returned = Set(products.map(\.id))
+            let invalid = sewlensProductIds.filter { !returned.contains($0) }
+            if !invalid.isEmpty {
+                NSLog("SewLens StoreKit invalid product ids: %@", invalid.joined(separator: ","))
+            }
             var prices: [String: String] = [:]
             for product in products {
                 prices[product.id] = product.displayPrice
             }
-            write(request, ["status": "ok", "prices": prices])
+            if prices.isEmpty {
+                let ids = invalid.isEmpty ? sewlensProductIds : invalid
+                write(request, billingError("error", "invalid", "no products returned", ids))
+                return
+            }
+            var payload: [String: Any] = ["status": "ok", "prices": prices, "platform": "ios"]
+            if !invalid.isEmpty {
+                payload["unfetchedProductIds"] = invalid
+                payload["responseCode"] = "invalid"
+                payload["message"] = "invalid product ids"
+            }
+            write(request, payload)
         } catch {
-            write(request, ["status": "error"])
+            NSLog("SewLens StoreKit error: %@", String(describing: error))
+            write(request, billingError("error", String(describing: type(of: error)), error.localizedDescription, sewlensProductIds))
         }
+    }
+
+    private static func billingError(_ status: String, _ code: String, _ message: String, _ ids: [String]) -> [String: Any] {
+        return [
+            "status": status,
+            "platform": "ios",
+            "responseCode": code,
+            "message": message,
+            "productIds": ids,
+        ]
     }
 
     private static func purchase(_ request: [String: Any]) async {

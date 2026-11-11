@@ -1,6 +1,8 @@
 package app.sewlens.nativebridge;
 
 import android.app.Activity;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import com.android.billingclient.api.AcknowledgePurchaseParams;
@@ -16,6 +18,7 @@ import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
 import com.android.billingclient.api.QueryProductDetailsResult;
 import com.android.billingclient.api.QueryPurchasesParams;
+import com.android.billingclient.api.UnfetchedProduct;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -25,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Google Play Billing for the consumable credit and the non-consumable unlock.
@@ -40,9 +44,14 @@ final class SewLensBilling implements PurchasesUpdatedListener {
     }
 
     private static final String TAG = "SewLensBilling";
+    private static final long SETUP_TIMEOUT_MS = 15_000L;
     private final Listener listener;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final AtomicInteger setupToken = new AtomicInteger();
+    private Runnable setupTimeout;
     private BillingClient client;
     private final Map<String, ProductDetails> products = new HashMap<>();
+    private final List<String> lastUnfetched = new ArrayList<>();
     private String pendingFinish = "";
 
     SewLensBilling(Listener listener) {
@@ -115,13 +124,36 @@ final class SewLensBilling implements PurchasesUpdatedListener {
                 .setListener(this)
                 .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
                 .build();
+        final int token = setupToken.incrementAndGet();
+        if (setupTimeout != null) {
+            mainHandler.removeCallbacks(setupTimeout);
+        }
+        Runnable timeout = () -> {
+            if (!setupToken.compareAndSet(token, token + 1)) {
+                return;
+            }
+            Log.w(TAG, "startConnection timed out before onBillingSetupFinished");
+            emit(errorPayload(-1, "BillingClient setup timed out", requestedIds()));
+        };
+        setupTimeout = timeout;
+        mainHandler.postDelayed(timeout, SETUP_TIMEOUT_MS);
         client.startConnection(new BillingClientStateListener() {
             @Override
             public void onBillingSetupFinished(BillingResult result) {
-                if (result.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                if (!setupToken.compareAndSet(token, token + 1)) {
+                    return;
+                }
+                mainHandler.removeCallbacks(timeout);
+                logResult("startConnection", result);
+                if (result.getResponseCode() == BillingClient.BillingResponseCode.OK && client != null && client.isReady()) {
+                    Log.i(TAG, "Play Billing connected");
                     activity.runOnUiThread(next);
                 } else {
-                    emit(status("unavailable"));
+                    String message = result.getDebugMessage();
+                    if (client == null || !client.isReady()) {
+                        message = message == null || message.isEmpty() ? "BillingClient is not connected" : message;
+                    }
+                    emit(errorPayload(result.getResponseCode(), message, requestedIds()));
                 }
             }
 
@@ -137,27 +169,51 @@ final class SewLensBilling implements PurchasesUpdatedListener {
             try {
                 JSONObject prices = new JSONObject();
                 for (Map.Entry<String, ProductDetails> entry : products.entrySet()) {
-                    prices.put(entry.getKey(), priceOf(entry.getValue()));
+                    String price = priceOf(entry.getValue());
+                    if (!price.isEmpty()) {
+                        prices.put(entry.getKey(), price);
+                    }
+                }
+                if (prices.length() == 0) {
+                    List<String> ids = lastUnfetched.isEmpty() ? requestedIds() : lastUnfetched;
+                    emit(errorPayload(BillingClient.BillingResponseCode.OK, "Store returned no prices", ids));
+                    return;
                 }
                 JSONObject payload = new JSONObject();
                 payload.put("status", "ok");
+                payload.put("platform", "android");
                 payload.put("prices", prices);
+                if (!lastUnfetched.isEmpty()) {
+                    payload.put("responseCode", BillingClient.BillingResponseCode.OK);
+                    payload.put("message", "unfetched product ids");
+                    payload.put("unfetchedProductIds", new JSONArray(lastUnfetched));
+                }
                 emit(payload.toString());
             } catch (Exception e) {
-                emit(status("error"));
+                emit(errorPayload(-1, e.getMessage(), requestedIds()));
             }
         });
     }
 
     private void queryDetailsThen(Runnable next) {
+        if (client == null || !client.isReady()) {
+            Log.w(TAG, "Play Billing is not connected; product query skipped");
+            emit(errorPayload(-1, "BillingClient is not connected", requestedIds()));
+            return;
+        }
+        Log.i(TAG, "Play Billing connected; querying INAPP " + CREDIT + ", " + UNLIMITED);
         List<QueryProductDetailsParams.Product> list = new ArrayList<>();
         list.add(product(CREDIT));
         list.add(product(UNLIMITED));
         QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder().setProductList(list).build();
         client.queryProductDetailsAsync(params, (BillingResult result, QueryProductDetailsResult queryResult) -> {
+            logResult("queryProductDetails", result);
+            lastUnfetched.clear();
+            lastUnfetched.addAll(unfetchedIds(queryResult));
             List<ProductDetails> details = queryResult == null ? null : queryResult.getProductDetailsList();
             if (result.getResponseCode() != BillingClient.BillingResponseCode.OK || details == null) {
-                emit(status("unavailable"));
+                List<String> ids = lastUnfetched.isEmpty() ? requestedIds() : lastUnfetched;
+                emit(errorPayload(result.getResponseCode(), result.getDebugMessage(), ids));
                 return;
             }
             products.clear();
@@ -265,6 +321,51 @@ final class SewLensBilling implements PurchasesUpdatedListener {
             // A missing field still leaves a JSON object the client can reject.
         }
         return row;
+    }
+
+    private static List<String> requestedIds() {
+        List<String> ids = new ArrayList<>();
+        ids.add(CREDIT);
+        ids.add(UNLIMITED);
+        return ids;
+    }
+
+    private static List<String> unfetchedIds(QueryProductDetailsResult queryResult) {
+        List<String> ids = new ArrayList<>();
+        if (queryResult == null || queryResult.getUnfetchedProductList() == null) {
+            return ids;
+        }
+        for (UnfetchedProduct item : queryResult.getUnfetchedProductList()) {
+            if (item == null) {
+                continue;
+            }
+            String id = item.getProductId() == null ? "" : item.getProductId();
+            Log.w(TAG, "unfetched productId=" + id + " statusCode=" + item.getStatusCode());
+            if (!id.isEmpty()) {
+                ids.add(id);
+            }
+        }
+        return ids;
+    }
+
+    private static void logResult(String where, BillingResult result) {
+        int code = result == null ? -1 : result.getResponseCode();
+        String message = result == null ? "null BillingResult" : String.valueOf(result.getDebugMessage());
+        Log.i(TAG, where + " responseCode=" + code + " debugMessage=" + message);
+    }
+
+    private static String errorPayload(int code, String message, List<String> productIds) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("status", "unavailable");
+            payload.put("platform", "android");
+            payload.put("responseCode", code);
+            payload.put("message", message == null ? "" : message);
+            payload.put("productIds", new JSONArray(productIds == null ? requestedIds() : productIds));
+            return payload.toString();
+        } catch (Exception e) {
+            return status("unavailable");
+        }
     }
 
     private static String status(String value) {

@@ -254,10 +254,14 @@ static void sln_poll(void) {
 	}
 }
 
+// Defined in SewLensStore.swift. Referencing it forces the lazy StoreKit poller to start.
+extern void sewlens_store_boot(void);
+
 /// constructor+used so Xcode dead-strip cannot drop this .o (nothing else references it).
 __attribute__((constructor, used))
 static void sln_boot(void) {
 	dispatch_async(dispatch_get_main_queue(), ^{
+		sewlens_store_boot();
 		[NSTimer scheduledTimerWithTimeInterval:0.2 repeats:YES block:^(__unused NSTimer *timer) {
 			sln_poll();
 		}];

@@ -15,6 +15,7 @@ func shows_back() -> bool:
 
 
 func enter(_params: Dictionary) -> void:
+	NativeBridge.log_event("paywall_shown", {})
 	var page := build_page()
 	var mark := TextureRect.new()
 	mark.texture = MARK
