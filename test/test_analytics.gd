@@ -153,6 +153,11 @@ func test_a_timeout_reports_the_last_billing_stage() -> void:
 		"productCount": 0,
 	}
 	assert_true(Billing.diagnostic_line(missing).contains("plugin_missing"))
+	var probe := Node.new()
+	var listed := NativeBridge.missing_plugin_method(probe, "queryProducts")
+	assert_true(listed.begins_with("SewLensNative has no queryProducts method. methods:"))
+	assert_true(listed.contains("get_class"))
+	probe.free()
 	Billing._log_billing_error(missing)
 	_assert_event("billing_error", {
 		"platform": "android",

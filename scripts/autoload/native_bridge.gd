@@ -227,13 +227,24 @@ func abandon_billing() -> void:
 		_poll_timer.stop()
 
 
+func missing_plugin_method(target: Object, method_name: String) -> String:
+	var names: PackedStringArray = []
+	for method in target.get_method_list():
+		var found := str(method.get("name", ""))
+		if found == "" or names.has(found):
+			continue
+		names.append(found)
+	names.sort()
+	return "SewLensNative has no %s method. methods: %s" % [method_name, ",".join(names)]
+
+
 func android_billing_plugin() -> String:
 	if _android == null and Engine.has_singleton("SewLensNative"):
 		_android = Engine.get_singleton("SewLensNative")
 	if _android == null:
 		return "SewLensNative singleton is not loaded"
 	if not _android.has_method("queryProducts"):
-		return "SewLensNative has no queryProducts method"
+		return missing_plugin_method(_android, "queryProducts")
 	if not _ensure_billing_signal():
 		return "billing_finished signal is not registered"
 	return "ok"

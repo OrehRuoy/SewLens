@@ -25,7 +25,9 @@ import org.godotengine.godot.plugin.UsedByGodot;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -52,6 +54,23 @@ public class SewLensNative extends GodotPlugin {
     @Override
     public String getPluginName() {
         return "SewLensNative";
+    }
+
+    /**
+     * Godot registers these names even when the @UsedByGodot annotation is not
+     * visible to reflection. The default implementation returns an empty list.
+     */
+    @Override
+    public List<String> getPluginMethods() {
+        return Arrays.asList(
+                "billingPluginInfo",
+                "queryProducts",
+                "purchase",
+                "restorePurchases",
+                "finishPurchase",
+                "requestReview",
+                "pickPhoto",
+                "shareFile");
     }
 
     @Override

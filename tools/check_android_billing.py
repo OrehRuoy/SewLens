@@ -9,6 +9,7 @@ searches the decoded strings rather than relying on aapt2 dump xmltree.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -19,6 +20,9 @@ MANIFEST = ROOT / "addons" / "sewlens_android" / "android" / "src" / "main" / "A
 EXPORT_PLUGIN = ROOT / "addons" / "sewlens_android" / "export_plugin.gd"
 LIBRARY_GRADLE = ROOT / "addons" / "sewlens_android" / "android" / "build.gradle"
 PLUGIN_AAR = ROOT / "addons" / "sewlens_android" / "sewlens_android.aar"
+PLUGIN_JAVA = ROOT / "addons" / "sewlens_android" / "android" / "src" / "main" / "java"
+BRIDGE = ROOT / "scripts" / "autoload" / "native_bridge.gd"
+ENGINE_CALLS = {"connect", "is_connected", "has_method", "has_signal", "call", "get_method_list"}
 BILLING = "com.android.billingclient:billing:8.3.0"
 PERMISSION = "com.android.vending.BILLING"
 PACKAGE = "com.android.vending"
@@ -32,6 +36,34 @@ def text(path: Path) -> str:
 def require(errors: list[str], ok: bool, message: str) -> None:
     if not ok:
         errors.append(message)
+
+
+def gdscript_plugin_calls() -> list[str]:
+    calls = set(re.findall(r"_android\.([A-Za-z_][A-Za-z0-9_]*)\(", text(BRIDGE)))
+    return sorted(calls - ENGINE_CALLS)
+
+
+def has_class_string(data: bytes, value: str) -> bool:
+    raw = value.encode("utf-8")
+    needle = bytes((1, (len(raw) >> 8) & 0xFF, len(raw) & 0xFF)) + raw
+    return needle in data
+
+
+def plugin_class_bytes() -> bytes:
+    with zipfile.ZipFile(PLUGIN_AAR) as archive:
+        jar = zipfile.ZipFile(archive.open("classes.jar"))
+        with jar:
+            return jar.read("app/sewlens/nativebridge/SewLensNative.class")
+
+
+def check_plugin_methods(errors: list[str]) -> None:
+    newest = max((path.stat().st_mtime for path in PLUGIN_JAVA.rglob("*.java")), default=0)
+    if PLUGIN_AAR.stat().st_mtime + 1 < newest:
+        errors.append("packed sewlens_android.aar is older than the Java source")
+    methods = plugin_class_bytes()
+    require(errors, has_class_string(methods, "getPluginMethods"), "packed AAR does not override getPluginMethods")
+    for name in gdscript_plugin_calls():
+        require(errors, has_class_string(methods, name), f"packed AAR is missing {name}, which GDScript calls")
 
 
 def check_sources(errors: list[str]) -> None:
@@ -127,6 +159,7 @@ def main() -> int:
     args = parser.parse_args()
     errors: list[str] = []
     check_sources(errors)
+    check_plugin_methods(errors)
     check_archive(errors, "plugin AAR", PLUGIN_AAR, want_client=False, want_log=True)
     if args.aab is not None:
         check_archive(errors, "AAB", args.aab, want_client=True, want_log=False)
