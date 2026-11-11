@@ -37,6 +37,7 @@ func refresh_prices() -> void:
 	if store == null:
 		return
 	if prices.is_empty():
+		price_diagnostic = ""
 		price_state = "loading"
 		updated.emit()
 	var loaded: Dictionary = await store.load_prices()
@@ -59,9 +60,15 @@ func refresh_prices() -> void:
 	updated.emit()
 
 
+func note_billing_progress(loaded: Dictionary) -> void:
+	price_diagnostic = diagnostic_line(loaded)
+	updated.emit()
+
+
 func buy(product_id: String, api: ApiClient) -> Dictionary:
 	var receipt: Dictionary = await store.purchase(product_id)
 	if not receipt.get("ok", false):
+		_log_billing_error(receipt)
 		return receipt
 	return await _verify(api, receipt)
 
@@ -69,6 +76,7 @@ func buy(product_id: String, api: ApiClient) -> Dictionary:
 func restore(api: ApiClient) -> Dictionary:
 	var found: Dictionary = await store.restore()
 	if not found.get("ok", false):
+		_log_billing_error(found)
 		return found
 	var receipts: Array = found.get("receipts", [])
 	if receipts.is_empty():
@@ -110,10 +118,14 @@ func diagnostic_line(loaded: Dictionary) -> String:
 		invalid = _ids_text(loaded.get("invalidProductIds", []))
 	if invalid == "" and not loaded.get("ok", true):
 		invalid = _ids_text(loaded.get("productIds", [CREDIT, UNLIMITED]))
+	var code := str(loaded.get("responseCode", loaded.get("error", loaded.get("status", ""))))
+	var code_name := str(loaded.get("responseName", ""))
+	if code_name != "" and not code.contains(code_name):
+		code = code + " " + code_name
 	var parts: PackedStringArray = [
 		str(loaded.get("platform", _store_platform())),
 		str(loaded.get("stage", "query")),
-		str(loaded.get("responseCode", loaded.get("error", loaded.get("status", "")))),
+		code,
 		str(loaded.get("message", loaded.get("error", ""))),
 		"valid: " + (valid if valid != "" else "none"),
 		"invalid: " + (invalid if invalid != "" else "none"),
@@ -146,6 +158,8 @@ func _log_billing_error(loaded: Dictionary) -> void:
 		params["product_count"] = int(loaded.get("productCount", 0))
 	if str(loaded.get("bundleId", "")) != "":
 		params["bundle_id"] = str(loaded.get("bundleId", ""))
+	if str(loaded.get("responseName", "")) != "":
+		params["response_name"] = str(loaded.get("responseName", ""))
 	print("SewLens billing_error %s" % JSON.stringify(params))
 	NativeBridge.log_event("billing_error", params)
 
@@ -188,6 +202,7 @@ class NativeStore extends Node:
 			"platform": str(payload.get("platform", Billing._store_platform())),
 			"stage": str(payload.get("stage", "query")),
 			"responseCode": payload.get("responseCode", ""),
+			"responseName": str(payload.get("responseName", "")),
 			"message": str(payload.get("message", "")),
 			"productIds": payload.get("productIds", [Billing.CREDIT, Billing.UNLIMITED]),
 			"unfetchedProductIds": payload.get("unfetchedProductIds", []),
@@ -235,24 +250,52 @@ class NativeStore extends Node:
 		while not done and waited < timeout:
 			await get_tree().create_timer(0.05).timeout
 			waited += 0.05
+		if not done:
+			await get_tree().process_frame
 		if done:
 			return payload
 		_generation += 1
 		if NativeBridge.billing_finished.is_connected(on_result):
 			NativeBridge.billing_finished.disconnect(on_result)
 		NativeBridge.abandon_billing()
-		return {
-			"status": "timeout",
-			"stage": "timeout",
-			"platform": Billing._store_platform(),
-			"responseCode": "timeout",
-			"message": "timeout after 15s waiting for the store" if action == "products" else "The store did not respond",
-			"productIds": [Billing.CREDIT, Billing.UNLIMITED],
-			"productCount": 0,
-		}
+		return Billing.timeout_result(action, NativeBridge.billing_trace)
 
 	func _receipt(payload: Dictionary) -> Dictionary:
 		if str(payload.get("status", "")) != "ok":
-			return {"ok": false, "error": str(payload.get("status", "error"))}
+			var failed := payload.duplicate()
+			failed["ok"] = false
+			failed["error"] = str(payload.get("message", payload.get("status", "error")))
+			return failed
 		payload["ok"] = true
 		return payload
+
+
+static func timeout_result(action: String, trace: Dictionary) -> Dictionary:
+	var stage := str(trace.get("stage", ""))
+	if stage == "":
+		stage = "connecting" if action == "products" else "timeout"
+	var message := str(trace.get("message", ""))
+	var code := str(trace.get("responseCode", ""))
+	if code == "":
+		code = "timeout"
+	if message in ["", "calling startConnection", "startConnection", "Play Billing connected", "Play Billing already connected", "queryProductDetailsAsync"]:
+		if action == "products" and stage == "connecting":
+			message = "setup timeout, onBillingSetupFinished never called"
+		elif action == "products":
+			message = "timeout after 15s waiting for the store"
+		else:
+			message = "The store did not respond"
+	return {
+		"status": "timeout",
+		"stage": stage,
+		"platform": str(trace.get("platform", _store_platform())),
+		"responseCode": code,
+		"responseName": str(trace.get("responseName", "")),
+		"message": message,
+		"productIds": trace.get("productIds", [CREDIT, UNLIMITED]),
+		"productCount": int(trace.get("productCount", 0)),
+		"validProductIds": trace.get("validProductIds", []),
+		"unfetchedProductIds": trace.get("unfetchedProductIds", []),
+		"invalidProductIds": trace.get("invalidProductIds", []),
+		"bundleId": str(trace.get("bundleId", "")),
+	}

@@ -38,6 +38,12 @@ func enter(_params: Dictionary) -> void:
 	loading.name = "PriceLoading"
 	loading.visible = false
 	page.add_child(loading)
+	var live := UI.caption("")
+	live.name = "PriceStage"
+	live.add_theme_font_size_override("font_size", 13)
+	live.add_theme_color_override("font_color", Color(0.4, 0.43, 0.47))
+	live.visible = false
+	page.add_child(live)
 	var failed := UI.card()
 	failed.add_child(UI.bullet(tr("pay_prices_failed"), "alert"))
 	var diagnostic := UI.caption("")
@@ -178,6 +184,10 @@ func _refresh() -> void:
 		diagnostic.visible = show_detail
 	if copy:
 		copy.visible = show_detail
+	var live := find_child("PriceStage", true, false) as Label
+	if live:
+		live.text = Billing.price_diagnostic
+		live.visible = Billing.show_price_diagnostic and state == "loading" and Billing.price_diagnostic != ""
 	var entitlement := find_child("Entitlement", true, false) as Label
 	var text := ""
 	if Billing.unlimited:

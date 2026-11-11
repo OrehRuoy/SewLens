@@ -20,6 +20,8 @@ var _android: Object
 var _analytics: Object
 var _request_id := 0
 var _pending_action := ""
+## Latest Play Billing or StoreKit payload, including a stage update that is still in progress.
+var billing_trace: Dictionary = {}
 ## Recent events, including locale, so tests can read the funnel without Firebase.
 var events: Array = []
 var _poll_elapsed := 0.0
@@ -32,8 +34,9 @@ func _ready() -> void:
 		_android = Engine.get_singleton("SewLensNative")
 		_android.connect("photo_finished", _on_android_photo)
 		_android.connect("share_finished", _on_android_share)
-		if _android.has_signal("billing_finished"):
-			_android.connect("billing_finished", _on_android_billing)
+		_ensure_billing_signal()
+	if OS.has_feature("android") or OS.get_name() == "Android":
+		print("SewLens billing plugin %s" % android_billing_plugin())
 	if Engine.has_singleton("SewLensAnalytics"):
 		_analytics = Engine.get_singleton("SewLensAnalytics")
 	_poll_timer = Timer.new()
@@ -146,6 +149,32 @@ func billing_request(action: String, extra: Dictionary = {}) -> void:
 		billing_finished.emit({"status": "error", "action": action})
 		return
 	_pending_action = "billing"
+	billing_trace = {}
+	if OS.has_feature("android") or OS.get_name() == "Android":
+		var plugin := android_billing_plugin()
+		if plugin != "ok":
+			_finish_billing(_plugin_missing(plugin))
+			return
+		if _android.has_method("billingPluginInfo"):
+			print("SewLens billing %s" % str(_android.billingPluginInfo()))
+		billing_trace = {
+			"status": "progress",
+			"stage": "connecting",
+			"platform": "android",
+			"message": "calling startConnection",
+		}
+		match action:
+			"products":
+				_android.queryProducts()
+			"purchase":
+				_android.purchase(str(extra.get("productId", "")))
+			"restore":
+				_android.restorePurchases()
+			"finish":
+				_android.finishPurchase(str(extra.get("transactionId", "")))
+			_:
+				_finish_billing({"status": "unavailable", "action": action, "stage": "connecting", "platform": "android"})
+		return
 	if _android and _android.has_method("queryProducts"):
 		match action:
 			"products":
@@ -177,13 +206,53 @@ func abandon_billing() -> void:
 		_poll_timer.stop()
 
 
+func android_billing_plugin() -> String:
+	if _android == null and Engine.has_singleton("SewLensNative"):
+		_android = Engine.get_singleton("SewLensNative")
+	if _android == null:
+		return "SewLensNative singleton is not loaded"
+	if not _android.has_method("queryProducts"):
+		return "SewLensNative has no queryProducts method"
+	if not _ensure_billing_signal():
+		return "billing_finished signal is not registered"
+	return "ok"
+
+
+func _ensure_billing_signal() -> bool:
+	if _android == null or not _android.has_signal("billing_finished"):
+		return false
+	if _android.is_connected("billing_finished", _on_android_billing):
+		return true
+	return _android.connect("billing_finished", _on_android_billing) == OK
+
+
+func _plugin_missing(reason: String) -> Dictionary:
+	return {
+		"status": "unavailable",
+		"stage": "plugin_missing",
+		"platform": "android",
+		"responseCode": "plugin_missing",
+		"message": reason,
+		"productIds": ["orehruoy.sewlens.credit", "orehruoy.sewlens.unlimited"],
+		"productCount": 0,
+	}
+
+
 func _on_android_billing(payload_json: String) -> void:
-	if _pending_action != "billing":
-		return
+	print("SewLens billing %s" % payload_json)
 	var json := JSON.new()
 	var parsed = json.data if json.parse(payload_json) == OK else null
 	if typeof(parsed) != TYPE_DICTIONARY:
-		_finish_billing({"status": "error"})
+		if _pending_action != "billing":
+			return
+		_finish_billing({"status": "error", "stage": "connecting", "platform": "android", "message": "billing signal was not JSON"})
+		return
+	billing_trace = parsed
+	if str(parsed.get("status", "")) == "progress":
+		if Billing.has_method("note_billing_progress"):
+			Billing.note_billing_progress(parsed)
+		return
+	if _pending_action != "billing":
 		return
 	_finish_billing(parsed)
 

@@ -73,23 +73,50 @@ public class SewLensNative extends GodotPlugin {
     }
 
     @UsedByGodot
+    public String billingPluginInfo() {
+        Activity activity = getActivity();
+        String pkg = activity == null ? "" : activity.getPackageName();
+        return "SewLensNative package=" + pkg;
+    }
+
+    @UsedByGodot
     public void queryProducts() {
-        billing().queryProducts(getActivity());
+        runBilling(activity -> billing().queryProducts(activity));
     }
 
     @UsedByGodot
     public void purchase(String productId) {
-        billing().purchase(getActivity(), productId);
+        runBilling(activity -> billing().purchase(activity, productId));
     }
 
     @UsedByGodot
     public void restorePurchases() {
-        billing().restore(getActivity());
+        runBilling(activity -> billing().restore(activity));
     }
 
     @UsedByGodot
     public void finishPurchase(String transactionId) {
-        billing().finish(getActivity(), transactionId);
+        runBilling(activity -> billing().finish(activity, transactionId));
+    }
+
+    /**
+     * Play Billing binds its service from the Android main thread. Godot calls
+     * @UsedByGodot methods on the render thread, and that bind then never calls back.
+     */
+    private void runBilling(java.util.function.Consumer<Activity> work) {
+        Activity activity = getActivity();
+        if (activity == null) {
+            billing().fail("connecting", -1, "no activity");
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            try {
+                work.accept(activity);
+            } catch (RuntimeException e) {
+                Log.e(TAG, "Billing call failed", e);
+                billing().fail("connecting", -1, e.toString());
+            }
+        });
     }
 
     @UsedByGodot

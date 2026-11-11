@@ -132,6 +132,33 @@ func test_zero_products_logs_billing_error_and_shows_the_store_text() -> void:
 	Billing.store = Billing.get_node_or_null("NativeStore")
 
 
+func test_a_timeout_reports_the_last_billing_stage() -> void:
+	NativeBridge.events.clear()
+	var loaded := Billing.timeout_result("products", {"stage": "connecting", "platform": "android", "message": "calling startConnection"})
+	assert_eq(loaded["stage"], "connecting")
+	assert_eq(loaded["message"], "setup timeout, onBillingSetupFinished never called")
+	var line := Billing.diagnostic_line(loaded)
+	assert_true(line.begins_with("android · connecting · timeout"))
+	assert_true(line.contains("setup timeout, onBillingSetupFinished never called"))
+	var missing := {
+		"ok": false,
+		"stage": "plugin_missing",
+		"platform": "android",
+		"responseCode": "plugin_missing",
+		"message": "SewLensNative singleton is not loaded",
+		"productIds": ["orehruoy.sewlens.credit", "orehruoy.sewlens.unlimited"],
+		"productCount": 0,
+	}
+	assert_true(Billing.diagnostic_line(missing).contains("plugin_missing"))
+	Billing._log_billing_error(missing)
+	_assert_event("billing_error", {
+		"platform": "android",
+		"stage": "plugin_missing",
+		"response_code": "plugin_missing",
+		"message": "SewLensNative singleton is not loaded",
+	})
+
+
 func test_language_switch_rerenders_the_open_screen() -> void:
 	var main := Fixture.make_main(self)
 	Fixture.open(main, ["home", {}])
