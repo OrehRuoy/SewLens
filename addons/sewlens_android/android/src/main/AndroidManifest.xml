@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Godot does not always merge these from the billing AAR. Without the
+         package query, Android 11+ can hide Play Store and startConnection never
+         calls back. -->
+    <uses-permission android:name="com.android.vending.BILLING" />
+    <queries>
+        <package android:name="com.android.vending" />
+        <intent>
+            <action android:name="com.android.vending.billing.InAppBillingService.BIND" />
+        </intent>
+    </queries>
     <application>
         <meta-data
             android:name="org.godotengine.plugin.v2.SewLensAnalytics"

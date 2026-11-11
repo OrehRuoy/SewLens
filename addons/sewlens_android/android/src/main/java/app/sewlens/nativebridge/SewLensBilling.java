@@ -1,6 +1,9 @@
 package app.sewlens.nativebridge;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -43,7 +46,8 @@ final class SewLensBilling implements PurchasesUpdatedListener {
         void onBilling(String json);
     }
 
-    private static final String TAG = "SewLensBilling";
+    private static final String TAG = "SEWLENS_BILLING";
+    private static final String BILLING_ACTION = "com.android.vending.billing.InAppBillingService.BIND";
     private static final long SETUP_TIMEOUT_MS = 15_000L;
     private final Listener listener;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -52,6 +56,7 @@ final class SewLensBilling implements PurchasesUpdatedListener {
     private BillingClient client;
     private String bundleId = "";
     private int lastProductCount = 0;
+    private int visibleBillingServices = -1;
     private final Map<String, ProductDetails> products = new HashMap<>();
     private final List<String> lastUnfetched = new ArrayList<>();
     private String pendingFinish = "";
@@ -152,13 +157,24 @@ final class SewLensBilling implements PurchasesUpdatedListener {
             if (!setupToken.compareAndSet(token, token + 1)) {
                 return;
             }
-            Log.w(TAG, "startConnection timed out before onBillingSetupFinished");
-            emit(report("connecting", -1, "setup timeout, onBillingSetupFinished never called", requestedIds(), new ArrayList<>(), 0));
+            Log.w(TAG, "startConnection timed out before onBillingSetupFinished services=" + visibleBillingServices);
+            emit(report("connecting", -1, "setup timeout, onBillingSetupFinished never called (Play billing services visible: " + visibleBillingServices + ", startConnection returned)", requestedIds(), new ArrayList<>(), 0));
         };
         setupTimeout = timeout;
         mainHandler.postDelayed(timeout, SETUP_TIMEOUT_MS);
+        int services = visibleBillingServices(activity);
+        visibleBillingServices = services;
+        Log.i(TAG, "queryIntentServices action=" + BILLING_ACTION + " package=com.android.vending count=" + services + " thread=" + Thread.currentThread().getName());
+        if (services == 0) {
+            if (setupToken.compareAndSet(token, token + 1)) {
+                mainHandler.removeCallbacks(timeout);
+                emit(report("connecting", BillingClient.BillingResponseCode.BILLING_UNAVAILABLE, "Play Billing service is not visible. The manifest needs queries for com.android.vending.", requestedIds(), new ArrayList<>(), 0));
+            }
+            return;
+        }
         emitProgress("connecting", "startConnection");
         try {
+            Log.i(TAG, "startConnection calling thread=" + Thread.currentThread().getName() + " services=" + services);
             client.startConnection(new BillingClientStateListener() {
                 @Override
                 public void onBillingSetupFinished(BillingResult result) {
@@ -182,14 +198,16 @@ final class SewLensBilling implements PurchasesUpdatedListener {
 
                 @Override
                 public void onBillingServiceDisconnected() {
-                    Log.w(TAG, "onBillingServiceDisconnected");
+                    Log.w(TAG, "onBillingServiceDisconnected thread=" + Thread.currentThread().getName());
                     if (!setupToken.compareAndSet(token, token + 1)) {
+                        Log.w(TAG, "onBillingServiceDisconnected ignored because setup already finished");
                         return;
                     }
                     mainHandler.removeCallbacks(timeout);
                     emit(report("connecting", BillingClient.BillingResponseCode.SERVICE_DISCONNECTED, "onBillingServiceDisconnected", requestedIds(), new ArrayList<>(), 0));
                 }
             });
+            Log.i(TAG, "startConnection returned thread=" + Thread.currentThread().getName() + " services=" + services);
         } catch (RuntimeException e) {
             if (setupToken.compareAndSet(token, token + 1)) {
                 mainHandler.removeCallbacks(timeout);
@@ -327,6 +345,23 @@ final class SewLensBilling implements PurchasesUpdatedListener {
         } else {
             client.acknowledgePurchase(AcknowledgePurchaseParams.newBuilder().setPurchaseToken(token).build(), result -> emit(status("ok")));
         }
+    }
+
+    private static int visibleBillingServices(Activity activity) {
+        Intent service = new Intent(BILLING_ACTION);
+        service.setPackage("com.android.vending");
+        PackageManager packages = activity.getPackageManager();
+        List<ResolveInfo> matches = packages.queryIntentServices(service, 0);
+        int count = matches == null ? 0 : matches.size();
+        if (matches != null) {
+            for (ResolveInfo info : matches) {
+                if (info == null || info.serviceInfo == null) {
+                    continue;
+                }
+                Log.i(TAG, "billing service " + info.serviceInfo.packageName + "/" + info.serviceInfo.name);
+            }
+        }
+        return count;
     }
 
     private static QueryProductDetailsParams.Product product(String id) {
