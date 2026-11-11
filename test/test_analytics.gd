@@ -159,6 +159,19 @@ func test_a_timeout_reports_the_last_billing_stage() -> void:
 	})
 
 
+func test_an_ios_timeout_names_the_storekit_stage() -> void:
+	var loaded := Billing.timeout_result("products", {"stage": "requesting", "platform": "ios", "message": "Product.products", "bundleId": "com.sewlens.app"})
+	assert_eq(loaded["stage"], "requesting")
+	assert_eq(loaded["message"], "StoreKit Product.products did not return")
+	var line := Billing.diagnostic_line(loaded)
+	assert_true(line.begins_with("ios · requesting"))
+	assert_true(line.contains("StoreKit Product.products did not return"))
+	assert_true(line.contains("bundle: com.sewlens.app"))
+	var missing := Billing.timeout_result("products", {"stage": "native_missing", "platform": "ios", "message": "waiting for SewLensStore"})
+	assert_eq(missing["message"], "SewLensStore poller never started")
+	assert_eq(missing["responseCode"], "native_missing")
+
+
 func test_language_switch_rerenders_the_open_screen() -> void:
 	var main := Fixture.make_main(self)
 	Fixture.open(main, ["home", {}])

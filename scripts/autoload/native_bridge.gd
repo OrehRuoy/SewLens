@@ -191,6 +191,21 @@ func billing_request(action: String, extra: Dictionary = {}) -> void:
 	if OS.has_feature("ios"):
 		var request := {"action": action}
 		request.merge(extra)
+		if action == "products":
+			var boot := _ios_boot()
+			billing_trace = {
+				"status": "progress",
+				"stage": "native_missing",
+				"platform": "ios",
+				"responseCode": "native_missing",
+				"message": "waiting for SewLensStore" if boot.is_empty() else "poller booted, waiting for the request to be read",
+				"bundleId": str(boot.get("bundleId", "")),
+				"productIds": ["orehruoy.sewlens.credit", "orehruoy.sewlens.unlimited"],
+				"productCount": 0,
+			}
+			print("SewLens billing ios %s" % JSON.stringify(billing_trace))
+			if Billing.has_method("note_billing_progress"):
+				Billing.note_billing_progress(billing_trace)
 		_send_ios_request(request)
 		return
 	_finish_billing({"status": "unavailable", "action": action})
@@ -330,24 +345,44 @@ func _ios_needs_short_timeout() -> bool:
 	return _ios_action == "products"
 
 
+func _ios_boot() -> Dictionary:
+	var path := _ios_dir().path_join("sewlens_native_boot.json")
+	if not FileAccess.file_exists(path):
+		return {}
+	var json := JSON.new()
+	var parsed = json.data if json.parse(FileAccess.get_file_as_string(path)) == OK else null
+	return parsed if typeof(parsed) == TYPE_DICTIONARY else {}
+
+
 func _poll_ios_result() -> void:
 	_poll_elapsed += IOS_POLL_SECONDS
 	var path := _ios_dir().path_join(RESULT_FILE)
 	if not FileAccess.file_exists(path):
+		if _ios_needs_short_timeout() and _pending_action == "billing" and _poll_elapsed >= 2.0 and str(billing_trace.get("stage", "")) == "native_missing":
+			_fail_ios_request()
+			return
 		var limit := IOS_TIMEOUT_SECONDS if _ios_needs_short_timeout() else IOS_USER_TIMEOUT_SECONDS
 		if _poll_elapsed > limit:
 			_fail_ios_request()
 		return
+	var text := FileAccess.get_file_as_string(path)
+	print("SewLens billing ios %s" % text)
 	var json := JSON.new()
-	var parsed = json.data if json.parse(FileAccess.get_file_as_string(path)) == OK else null
-	DirAccess.remove_absolute(path)
+	var parsed = json.data if json.parse(text) == OK else null
 	if typeof(parsed) != TYPE_DICTIONARY or int(parsed.get("id", -1)) != _request_id:
+		return
+	DirAccess.remove_absolute(path)
+	if str(parsed.get("status", "")) == "progress":
+		billing_trace = parsed
+		if Billing.has_method("note_billing_progress"):
+			Billing.note_billing_progress(parsed)
 		return
 	_poll_timer.stop()
 	var status := str(parsed.get("status", "error"))
 	if _pending_action == "photo":
 		_finish_photo(status, PHOTO_FILE if status == "ok" else "")
 	elif _pending_action == "billing":
+		billing_trace = parsed
 		_finish_billing(parsed)
 	else:
 		_pending_action = ""
@@ -359,11 +394,31 @@ func _fail_ios_request() -> void:
 	if _pending_action == "photo":
 		_finish_photo("error", "")
 	elif _pending_action == "billing":
-		var payload := {"status": "error", "stage": "timeout", "platform": "ios", "responseCode": "timeout"}
+		var payload: Dictionary = billing_trace.duplicate()
+		payload["status"] = "error"
+		payload["platform"] = "ios"
+		var stage := str(payload.get("stage", ""))
+		if stage == "":
+			stage = "native_missing" if _ios_action == "products" else "timeout"
+			payload["stage"] = stage
 		if _ios_action == "products":
-			payload["message"] = "timeout after 15s waiting for StoreKit"
-			payload["productIds"] = ["orehruoy.sewlens.credit", "orehruoy.sewlens.unlimited"]
-			payload["productCount"] = 0
+			payload["productIds"] = payload.get("productIds", ["orehruoy.sewlens.credit", "orehruoy.sewlens.unlimited"])
+			payload["productCount"] = int(payload.get("productCount", 0))
+			if stage == "native_missing":
+				var boot := _ios_boot()
+				payload["responseCode"] = "native_missing"
+				if boot.is_empty():
+					payload["message"] = "SewLensStore poller never started"
+				else:
+					payload["message"] = "poller booted but did not read the product request"
+					payload["bundleId"] = str(boot.get("bundleId", payload.get("bundleId", "")))
+			elif stage == "requesting":
+				payload["message"] = "StoreKit Product.products did not return"
+				payload["responseCode"] = "timeout"
+			elif stage == "response_received":
+				payload["message"] = "StoreKit responded but the result was not parsed"
+				payload["responseCode"] = "timeout"
+		print("SewLens billing ios %s" % JSON.stringify(payload))
 		_finish_billing(payload)
 	else:
 		_pending_action = ""

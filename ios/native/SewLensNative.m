@@ -254,8 +254,10 @@ static void sln_poll(void) {
 	}
 }
 
-// Defined in SewLensStore.swift. Referencing it forces the lazy StoreKit poller to start.
+// Defined in SewLensStore.swift. The boot call writes the marker file and the
+// poll call is what keeps the StoreKit request alive on the main thread.
 extern void sewlens_store_boot(void);
+extern void sewlens_store_poll(void);
 
 /// constructor+used so Xcode dead-strip cannot drop this .o (nothing else references it).
 __attribute__((constructor, used))
@@ -263,6 +265,7 @@ static void sln_boot(void) {
 	dispatch_async(dispatch_get_main_queue(), ^{
 		sewlens_store_boot();
 		[NSTimer scheduledTimerWithTimeInterval:0.2 repeats:YES block:^(__unused NSTimer *timer) {
+			sewlens_store_poll();
 			sln_poll();
 		}];
 	});

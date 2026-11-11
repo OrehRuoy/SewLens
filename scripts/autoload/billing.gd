@@ -271,14 +271,27 @@ class NativeStore extends Node:
 
 
 static func timeout_result(action: String, trace: Dictionary) -> Dictionary:
+	var platform := str(trace.get("platform", _store_platform()))
 	var stage := str(trace.get("stage", ""))
 	if stage == "":
-		stage = "connecting" if action == "products" else "timeout"
+		if platform == "ios" and action == "products":
+			stage = "native_missing"
+		else:
+			stage = "connecting" if action == "products" else "timeout"
 	var message := str(trace.get("message", ""))
 	var code := str(trace.get("responseCode", ""))
 	if code == "":
-		code = "timeout"
-	if message in ["", "calling startConnection", "startConnection", "Play Billing connected", "Play Billing already connected", "queryProductDetailsAsync"]:
+		code = "native_missing" if stage == "native_missing" else "timeout"
+	if platform == "ios" and action == "products":
+		if stage == "native_missing" and message in ["", "waiting for SewLensStore"]:
+			message = "SewLensStore poller never started"
+		elif stage == "native_missing" and message == "poller booted, waiting for the request to be read":
+			message = "poller booted but did not read the product request"
+		elif stage == "requesting" and message in ["", "Product.products"]:
+			message = "StoreKit Product.products did not return"
+		elif stage == "response_received" and (message == "" or message.begins_with("count ")):
+			message = "StoreKit responded but the result was not parsed"
+	elif message in ["", "calling startConnection", "startConnection", "Play Billing connected", "Play Billing already connected", "queryProductDetailsAsync"]:
 		if action == "products" and stage == "connecting":
 			message = "setup timeout, onBillingSetupFinished never called"
 		elif action == "products":
@@ -288,7 +301,7 @@ static func timeout_result(action: String, trace: Dictionary) -> Dictionary:
 	return {
 		"status": "timeout",
 		"stage": stage,
-		"platform": str(trace.get("platform", _store_platform())),
+		"platform": platform,
 		"responseCode": code,
 		"responseName": str(trace.get("responseName", "")),
 		"message": message,

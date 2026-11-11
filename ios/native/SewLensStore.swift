@@ -12,23 +12,46 @@ private let sewlensProductIds = [sewlensCredit, sewlensUnlimited]
 private let sewlensRequestName = "sewlens_native_request.json"
 private let sewlensBilling: Set<String> = ["products", "purchase", "restore", "finish", "offer"]
 
-private let sewlensStoreBoot: Void = {
-    DispatchQueue.main.async {
-        Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
-            Task { await SewLensStore.poll() }
-        }
-    }
-}()
-
-// Swift globals are lazy. sln_boot in SewLensNative.m calls this, which is what
-// actually starts the poller. Without that reference the timer is never created.
+// sln_boot calls these. A Swift timer never starts unless something references
+// it, so the ObjC poller is what keeps the StoreKit task alive.
 @_cdecl("sewlens_store_boot")
 public func sewlens_store_boot() {
-    _ = sewlensStoreBoot
+    if Thread.isMainThread {
+        MainActor.assumeIsolated { SewLensStore.boot() }
+    } else {
+        DispatchQueue.main.async { sewlens_store_boot() }
+    }
 }
 
+@_cdecl("sewlens_store_poll")
+public func sewlens_store_poll() {
+    if Thread.isMainThread {
+        MainActor.assumeIsolated { SewLensStore.kick() }
+    } else {
+        DispatchQueue.main.async { sewlens_store_poll() }
+    }
+}
+
+@MainActor
 enum SewLensStore {
+    /// Held until Product.products returns, so the request is not dropped when the poll returns.
+    private static var active: Task<Void, Never>?
     private static var busy = false
+
+    static func boot() {
+        let bundle = Bundle.main.bundleIdentifier ?? ""
+        NSLog("SewLens StoreKit boot bundle=%@", bundle)
+        writeBoot(bundle)
+        kick()
+    }
+
+    static func kick() {
+        if active != nil { return }
+        active = Task { @MainActor in
+            await poll()
+            active = nil
+        }
+    }
 
     static func poll() async {
         if busy { return }
@@ -39,6 +62,9 @@ enum SewLensStore {
             let action = request["action"] as? String,
             sewlensBilling.contains(action)
         else { return }
+        if action == "products" {
+            write(request, progress("requesting", "Product.products", 0))
+        }
         try? FileManager.default.removeItem(atPath: path)
         busy = true
         defer { busy = false }
@@ -54,7 +80,7 @@ enum SewLensStore {
         case "offer":
             await offer(request)
         default:
-            write(request, ["status": "error"])
+            write(request, ["status": "error", "stage": "parsed", "platform": "ios"])
         }
     }
 
@@ -67,6 +93,7 @@ enum SewLensStore {
             let valid = products.map(\.id)
             let invalid = sewlensProductIds.filter { !returned.contains($0) }
             NSLog("SewLens StoreKit returned %d products, invalid: %@", products.count, invalid.joined(separator: ","))
+            write(request, progress("response_received", "count \(products.count)", products.count))
             var prices: [String: String] = [:]
             for product in products {
                 prices[product.id] = product.displayPrice
@@ -74,19 +101,34 @@ enum SewLensStore {
             if prices.isEmpty {
                 let ids = invalid.isEmpty ? sewlensProductIds : invalid
                 let message = "0 products, invalid: \(ids.joined(separator: ", "))"
-                write(request, productReport("unavailable", "query", "0", message, ids, [], products.count))
+                write(request, productReport("unavailable", "parsed", "0", message, ids, [], products.count))
                 return
             }
-            var payload = productReport("ok", "query", "0", invalid.isEmpty ? "" : "invalid product ids", invalid, valid, products.count)
+            var payload = productReport("ok", "parsed", "0", invalid.isEmpty ? "" : "invalid product ids", invalid, valid, products.count)
             payload["prices"] = prices
             write(request, payload)
         } catch {
             let ns = error as NSError
             NSLog("SewLens StoreKit error domain=%@ code=%d %@", ns.domain, ns.code, ns.localizedDescription)
-            var payload = productReport("error", "query", "\(ns.domain)/\(ns.code)", ns.localizedDescription, sewlensProductIds, [], 0)
+            write(request, progress("response_received", ns.localizedDescription, 0))
+            var payload = productReport("error", "parsed", "\(ns.domain)/\(ns.code)", ns.localizedDescription, sewlensProductIds, [], 0)
             payload["domain"] = ns.domain
             write(request, payload)
         }
+    }
+
+    private static func progress(_ stage: String, _ message: String, _ count: Int) -> [String: Any] {
+        return productReport("progress", stage, "", message, sewlensProductIds, [], count)
+    }
+
+    private static func writeBoot(_ bundle: String) {
+        let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first ?? ""
+        guard !docs.isEmpty else { return }
+        let path = (docs as NSString).appendingPathComponent("sewlens_native_boot.json")
+        let payload: [String: Any] = ["stage": "booted", "bundleId": bundle, "poller": "SewLensStore"]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        FileManager.default.createFile(atPath: path, contents: data)
+        NSLog("SewLens StoreKit boot file %@", path)
     }
 
     private static func productReport(_ status: String, _ stage: String, _ code: String, _ message: String, _ invalid: [String], _ valid: [String], _ count: Int) -> [String: Any] {
@@ -109,7 +151,7 @@ enum SewLensStore {
         let productId = request["productId"] as? String ?? ""
         do {
             guard let product = try await Product.products(for: [productId]).first else {
-                write(request, ["status": "unavailable"])
+                write(request, productReport("unavailable", "parsed", "0", "0 products, invalid: \(productId)", [productId], [], 0))
                 return
             }
             switch try await product.purchase() {
@@ -122,12 +164,16 @@ enum SewLensStore {
             case .userCancelled:
                 write(request, ["status": "cancelled"])
             case .pending:
-                write(request, ["status": "error"])
+                write(request, productReport("error", "parsed", "pending", "purchase is pending", [productId], [], 0))
             @unknown default:
-                write(request, ["status": "error"])
+                write(request, productReport("error", "parsed", "unknown", "purchase returned an unknown result", [productId], [], 0))
             }
         } catch {
-            write(request, ["status": "error"])
+            let ns = error as NSError
+            NSLog("SewLens StoreKit purchase error domain=%@ code=%d %@", ns.domain, ns.code, ns.localizedDescription)
+            var payload = productReport("error", "parsed", "\(ns.domain)/\(ns.code)", ns.localizedDescription, [productId], [], 0)
+            payload["domain"] = ns.domain
+            write(request, payload)
         }
     }
 
@@ -186,7 +232,11 @@ enum SewLensStore {
         var payload = fields
         payload["id"] = request["id"] ?? 0
         payload["action"] = request["action"] ?? ""
-        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            NSLog("SewLens StoreKit could not encode %@", payload["stage"] as? String ?? "")
+            return
+        }
+        NSLog("SewLens StoreKit %@ %@", payload["stage"] as? String ?? "", payload["message"] as? String ?? "")
         let temporary = path + ".tmp"
         FileManager.default.createFile(atPath: temporary, contents: data)
         try? FileManager.default.removeItem(atPath: path)
