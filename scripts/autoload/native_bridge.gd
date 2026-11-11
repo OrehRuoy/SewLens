@@ -27,6 +27,8 @@ var events: Array = []
 var _poll_elapsed := 0.0
 var _poll_timer: Timer
 var _ios_action := ""
+## Tests set this so a simulated StoreKit result can finish the wait. Production leaves it off.
+var hold_billing_for_test := false
 
 
 func _ready() -> void:
@@ -145,6 +147,10 @@ func open_url(url: String) -> void:
 ## StoreKit 2 on iOS and Play Billing on Android. Emits billing_finished.
 ## Desktop and a plugin without billing methods finish as unavailable.
 func billing_request(action: String, extra: Dictionary = {}) -> void:
+	if hold_billing_for_test and action != "finish":
+		_pending_action = "billing"
+		billing_trace = {}
+		return
 	if action != "finish" and is_busy():
 		billing_finished.emit({"status": "error", "action": action})
 		return
@@ -274,6 +280,7 @@ func _on_android_billing(payload_json: String) -> void:
 
 func _finish_billing(payload: Dictionary) -> void:
 	_pending_action = ""
+	billing_trace = payload
 	billing_finished.emit(payload)
 
 

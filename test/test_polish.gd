@@ -39,6 +39,11 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	var pending := NativeBridge._pending_action == "billing"
+	NativeBridge.hold_billing_for_test = false
+	if pending:
+		NativeBridge._finish_billing({"status": "error", "message": "test ended"})
+		await get_tree().create_timer(0.15).timeout
 	Billing.prices = {}
 	Billing.price_state = "idle"
 	Billing.price_diagnostic = ""
@@ -56,6 +61,45 @@ func test_prices_fill_in_from_the_store() -> void:
 	assert_false((main.find_child("BuyCredit", true, false) as Button).disabled)
 	assert_false((main.find_child("PricesFailed", true, false) as Control).visible)
 	assert_has(Fixture.visible_texts(main), "Pay once. No subscription.")
+	main.queue_free()
+
+
+func test_a_parsed_ios_result_fills_both_prices_and_enables_buy() -> void:
+	NativeBridge.hold_billing_for_test = true
+	Billing.store = Billing.get_node_or_null("NativeStore")
+	Billing.prices = {}
+	Billing.price_state = "idle"
+	Billing.price_diagnostic = ""
+	var main := Fixture.make_main(self)
+	Fixture.open(main, ["paywall", {}])
+	await _frames(1)
+	assert_eq(Billing.price_state, "loading")
+	var started := Time.get_ticks_msec()
+	NativeBridge._finish_billing({
+		"status": "ok",
+		"stage": "parsed",
+		"platform": "ios",
+		"responseCode": "0",
+		"message": "",
+		"productCount": 2,
+		"bundleId": "com.sewlens.app",
+		"productIds": [],
+		"invalidProductIds": [],
+		"validProductIds": ["orehruoy.sewlens.credit", "orehruoy.sewlens.unlimited"],
+		"prices": {
+			"orehruoy.sewlens.credit": "$4.99",
+			"orehruoy.sewlens.unlimited": "$39.99",
+		},
+	})
+	await get_tree().create_timer(0.3).timeout
+	assert_lt(Time.get_ticks_msec() - started, 2000)
+	assert_eq(Billing.price_state, "ready")
+	assert_eq((main.find_child("CreditPrice", true, false) as Label).text, "$4.99")
+	assert_eq((main.find_child("UnlimitedPrice", true, false) as Label).text, "$39.99")
+	assert_false((main.find_child("BuyCredit", true, false) as Button).disabled)
+	assert_false((main.find_child("BuyUnlimited", true, false) as Button).disabled)
+	assert_false((main.find_child("PricesFailed", true, false) as Control).visible)
+	assert_false(Billing.price_diagnostic.contains("timeout"))
 	main.queue_free()
 
 

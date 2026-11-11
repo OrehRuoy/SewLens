@@ -196,9 +196,10 @@ class NativeStore extends Node:
 	func load_prices() -> Dictionary:
 		var payload := await _request("products", {}, Billing.PRICE_TIMEOUT)
 		var status := str(payload.get("status", ""))
+		var prices := Billing._store_prices(payload)
 		var result := {
-			"ok": status == "ok" and int(payload.get("productCount", 1)) != 0,
-			"prices": payload.get("prices", {}),
+			"ok": status == "ok" and int(payload.get("productCount", 1)) != 0 and not prices.is_empty(),
+			"prices": prices,
 			"platform": str(payload.get("platform", Billing._store_platform())),
 			"stage": str(payload.get("stage", "query")),
 			"responseCode": payload.get("responseCode", ""),
@@ -236,29 +237,43 @@ class NativeStore extends Node:
 		NativeBridge.billing_request("finish", {"transactionId": transaction_id})
 
 	func _request(action: String, extra: Dictionary = {}, timeout: float = Billing.PRICE_TIMEOUT) -> Dictionary:
-		var payload := {}
-		var done := false
+		# A lambda captures bool and Dictionary by value. The reply object is shared,
+		# so the signal can finish this wait instead of leaving it to time out.
+		var reply := _Reply.new()
 		var generation := _generation
-		var on_result := func(reply: Dictionary) -> void:
+		var on_result := func(payload: Dictionary) -> void:
 			if generation != _generation:
 				return
-			payload = reply
-			done = true
+			reply.accept(payload)
 		NativeBridge.billing_finished.connect(on_result, CONNECT_ONE_SHOT)
 		NativeBridge.billing_request(action, extra)
 		var waited := 0.0
-		while not done and waited < timeout:
+		while not reply.done and waited < timeout:
 			await get_tree().create_timer(0.05).timeout
 			waited += 0.05
-		if not done:
+			if not reply.done:
+				reply.accept(Billing.finished_store_result(NativeBridge.billing_trace))
+		if not reply.done:
 			await get_tree().process_frame
-		if done:
-			return payload
-		_generation += 1
+			reply.accept(Billing.finished_store_result(NativeBridge.billing_trace))
 		if NativeBridge.billing_finished.is_connected(on_result):
 			NativeBridge.billing_finished.disconnect(on_result)
+		if reply.done:
+			return reply.payload
+		_generation += 1
 		NativeBridge.abandon_billing()
 		return Billing.timeout_result(action, NativeBridge.billing_trace)
+
+	class _Reply:
+		extends RefCounted
+		var done := false
+		var payload: Dictionary = {}
+
+		func accept(next: Dictionary) -> void:
+			if done or next.is_empty():
+				return
+			payload = next
+			done = true
 
 	func _receipt(payload: Dictionary) -> Dictionary:
 		if str(payload.get("status", "")) != "ok":
@@ -268,6 +283,35 @@ class NativeStore extends Node:
 			return failed
 		payload["ok"] = true
 		return payload
+
+
+## A StoreKit or Play result that should end the price wait. Progress updates do not.
+static func finished_store_result(payload: Dictionary) -> Dictionary:
+	var status := str(payload.get("status", ""))
+	if status == "" or status == "progress":
+		return {}
+	return payload
+
+
+## Product id to the store's localized displayPrice. Also accepts a products list.
+static func _store_prices(payload: Dictionary) -> Dictionary:
+	var found := {}
+	var prices = payload.get("prices", {})
+	if typeof(prices) == TYPE_DICTIONARY:
+		for key in prices.keys():
+			var amount := str(prices[key]).strip_edges()
+			if str(key) != "" and amount != "":
+				found[str(key)] = amount
+	var products = payload.get("products", [])
+	if typeof(products) == TYPE_ARRAY:
+		for item in products:
+			if typeof(item) != TYPE_DICTIONARY:
+				continue
+			var product_id := str(item.get("id", item.get("productId", ""))).strip_edges()
+			var amount := str(item.get("displayPrice", item.get("price", ""))).strip_edges()
+			if product_id != "" and amount != "":
+				found[product_id] = amount
+	return found
 
 
 static func timeout_result(action: String, trace: Dictionary) -> Dictionary:
