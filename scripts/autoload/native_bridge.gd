@@ -73,7 +73,7 @@ func log_event(event_name: String, params: Dictionary) -> void:
 
 ## The store review sheet. The pattern screen also shows a localized prompt.
 func request_review() -> void:
-	if _android and _android.has_method("requestReview"):
+	if _android and plugin_method_exists(_android, "requestReview"):
 		_android.requestReview()
 	elif OS.has_feature("ios"):
 		_send_ios_request({"action": "review"})
@@ -112,7 +112,7 @@ func pick_photo(source: String) -> void:
 	var output := ProjectSettings.globalize_path(PHOTO_FILE)
 	if FileAccess.file_exists(PHOTO_FILE):
 		DirAccess.remove_absolute(output)
-	if _android:
+	if _android and plugin_method_exists(_android, "pickPhoto"):
 		_android.pickPhoto(source, output)
 	elif OS.has_feature("ios"):
 		_send_ios_request({"action": "photo", "source": source, "output": output})
@@ -131,7 +131,7 @@ func share_file(path: String, mime: String, title: String) -> void:
 		share_finished.emit("error")
 		return
 	_pending_action = "share"
-	if _android:
+	if _android and plugin_method_exists(_android, "shareFile"):
 		_android.shareFile(absolute, mime, title)
 	elif OS.has_feature("ios"):
 		_send_ios_request({"action": "share", "path": absolute, "title": title})
@@ -161,7 +161,7 @@ func billing_request(action: String, extra: Dictionary = {}) -> void:
 		if plugin != "ok":
 			_finish_billing(_plugin_missing(plugin))
 			return
-		if _android.has_method("billingPluginInfo"):
+		if plugin_method_exists(_android, "billingPluginInfo"):
 			print("SewLens billing %s" % str(_android.billingPluginInfo()))
 		billing_trace = {
 			"status": "progress",
@@ -181,7 +181,7 @@ func billing_request(action: String, extra: Dictionary = {}) -> void:
 			_:
 				_finish_billing({"status": "unavailable", "action": action, "stage": "connecting", "platform": "android"})
 		return
-	if _android and _android.has_method("queryProducts"):
+	if _android and plugin_method_exists(_android, "queryProducts"):
 		match action:
 			"products":
 				_android.queryProducts()
@@ -227,6 +227,17 @@ func abandon_billing() -> void:
 		_poll_timer.stop()
 
 
+## Android exposes SewLensNative as a JNISingleton. has_method only lists Object
+## methods plus has_java_method, so Java plugin methods are checked the other way.
+## iOS and desktop objects do not have has_java_method and still use has_method.
+func plugin_method_exists(target: Object, method_name: String) -> bool:
+	if target == null:
+		return false
+	if target.has_method("has_java_method"):
+		return bool(target.call("has_java_method", method_name))
+	return target.has_method(method_name)
+
+
 func missing_plugin_method(target: Object, method_name: String) -> String:
 	var names: PackedStringArray = []
 	for method in target.get_method_list():
@@ -243,7 +254,7 @@ func android_billing_plugin() -> String:
 		_android = Engine.get_singleton("SewLensNative")
 	if _android == null:
 		return "SewLensNative singleton is not loaded"
-	if not _android.has_method("queryProducts"):
+	if not plugin_method_exists(_android, "queryProducts"):
 		return missing_plugin_method(_android, "queryProducts")
 	if not _ensure_billing_signal():
 		return "billing_finished signal is not registered"

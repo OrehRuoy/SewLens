@@ -6,6 +6,15 @@ const Fixture := preload("res://test/support/screen_fixture.gd")
 const MockTransport := preload("res://test/support/mock_transport.gd")
 
 
+## A Godot 4 JNISingleton: Java methods are visible only to has_java_method.
+class JavaOnlyPlugin:
+	extends Object
+	signal billing_finished(payload: String)
+
+	func has_java_method(method_name: String) -> bool:
+		return method_name == "queryProducts"
+
+
 func before_each() -> void:
 	NativeBridge.events.clear()
 	Fixture.prepare_profile()
@@ -165,6 +174,20 @@ func test_a_timeout_reports_the_last_billing_stage() -> void:
 		"response_code": "plugin_missing",
 		"message": "SewLensNative singleton is not loaded",
 	})
+
+
+func test_a_java_singleton_passes_the_plugin_check() -> void:
+	var fake := JavaOnlyPlugin.new()
+	assert_false(fake.has_method("queryProducts"))
+	assert_true(fake.has_java_method("queryProducts"))
+	var previous: Object = NativeBridge._android
+	NativeBridge._android = fake
+	var result := NativeBridge.android_billing_plugin()
+	if fake.is_connected("billing_finished", NativeBridge._on_android_billing):
+		fake.disconnect("billing_finished", NativeBridge._on_android_billing)
+	NativeBridge._android = previous
+	assert_eq(result, "ok")
+	fake.free()
 
 
 func test_an_ios_timeout_names_the_storekit_stage() -> void:
