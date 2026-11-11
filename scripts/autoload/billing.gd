@@ -14,6 +14,9 @@ var credits := 0
 var unlimited := false
 ## "idle", "loading", "ready" or "failed", so screens can show a placeholder or a retry.
 var price_state := "idle"
+## Turn this off before release. While it is on, a failed price load shows the store's own error.
+var show_price_diagnostic := true
+var price_diagnostic := ""
 
 signal updated
 
@@ -38,13 +41,21 @@ func refresh_prices() -> void:
 		updated.emit()
 	var loaded: Dictionary = await store.load_prices()
 	var got: Dictionary = loaded.get("prices", {}) if loaded.get("ok", false) else {}
-	if not got.is_empty():
+	var invalid := _id_list(loaded.get("unfetchedProductIds", []))
+	if invalid.is_empty():
+		invalid = _id_list(loaded.get("invalidProductIds", []))
+	var none_returned: bool = loaded.has("productCount") and int(loaded.get("productCount", -1)) == 0
+	var failed: bool = got.is_empty() or not invalid.is_empty() or not bool(loaded.get("ok", false)) or none_returned
+	if failed:
+		price_diagnostic = diagnostic_line(loaded)
+		_log_billing_error(loaded)
+	else:
+		price_diagnostic = ""
+	if not got.is_empty() and not none_returned:
 		prices = got
 		price_state = "ready"
 	elif prices.is_empty():
 		price_state = "failed"
-	if got.is_empty() or _id_list(loaded.get("unfetchedProductIds", [])).size() > 0 or not loaded.get("ok", false):
-		_log_billing_error(loaded)
 	updated.emit()
 
 
@@ -92,17 +103,51 @@ func _verify(api: ApiClient, receipt: Dictionary) -> Dictionary:
 	return result
 
 
+func diagnostic_line(loaded: Dictionary) -> String:
+	var valid := _ids_text(loaded.get("validProductIds", []))
+	var invalid := _ids_text(loaded.get("unfetchedProductIds", []))
+	if invalid == "":
+		invalid = _ids_text(loaded.get("invalidProductIds", []))
+	if invalid == "" and not loaded.get("ok", true):
+		invalid = _ids_text(loaded.get("productIds", [CREDIT, UNLIMITED]))
+	var parts: PackedStringArray = [
+		str(loaded.get("platform", _store_platform())),
+		str(loaded.get("stage", "query")),
+		str(loaded.get("responseCode", loaded.get("error", loaded.get("status", "")))),
+		str(loaded.get("message", loaded.get("error", ""))),
+		"valid: " + (valid if valid != "" else "none"),
+		"invalid: " + (invalid if invalid != "" else "none"),
+	]
+	if loaded.has("productCount"):
+		parts.append("count: " + str(int(loaded.get("productCount", 0))))
+	if str(loaded.get("bundleId", "")) != "":
+		parts.append("bundle: " + str(loaded.get("bundleId", "")))
+	return " · ".join(parts)
+
+
 func _log_billing_error(loaded: Dictionary) -> void:
 	var ids = loaded.get("unfetchedProductIds", [])
 	if _id_list(ids).is_empty():
+		ids = loaded.get("invalidProductIds", [])
+	if _id_list(ids).is_empty():
 		ids = loaded.get("productIds", [CREDIT, UNLIMITED])
 	var code = loaded.get("responseCode", loaded.get("error", loaded.get("status", "unavailable")))
-	NativeBridge.log_event("billing_error", {
+	var message := str(loaded.get("message", loaded.get("error", "")))
+	var params := {
 		"platform": str(loaded.get("platform", _store_platform())),
+		"stage": str(loaded.get("stage", "query")),
 		"response_code": str(code),
-		"message": str(loaded.get("message", loaded.get("error", ""))),
+		"message": message.substr(0, 100),
 		"product_ids": _ids_text(ids),
-	})
+		"valid_ids": _ids_text(loaded.get("validProductIds", [])),
+		"invalid_ids": _ids_text(ids),
+	}
+	if loaded.has("productCount"):
+		params["product_count"] = int(loaded.get("productCount", 0))
+	if str(loaded.get("bundleId", "")) != "":
+		params["bundle_id"] = str(loaded.get("bundleId", ""))
+	print("SewLens billing_error %s" % JSON.stringify(params))
+	NativeBridge.log_event("billing_error", params)
 
 
 static func _store_platform() -> String:
@@ -138,15 +183,21 @@ class NativeStore extends Node:
 		var payload := await _request("products", {}, Billing.PRICE_TIMEOUT)
 		var status := str(payload.get("status", ""))
 		var result := {
-			"ok": status == "ok",
+			"ok": status == "ok" and int(payload.get("productCount", 1)) != 0,
 			"prices": payload.get("prices", {}),
 			"platform": str(payload.get("platform", Billing._store_platform())),
+			"stage": str(payload.get("stage", "query")),
 			"responseCode": payload.get("responseCode", ""),
 			"message": str(payload.get("message", "")),
 			"productIds": payload.get("productIds", [Billing.CREDIT, Billing.UNLIMITED]),
 			"unfetchedProductIds": payload.get("unfetchedProductIds", []),
+			"invalidProductIds": payload.get("invalidProductIds", []),
+			"validProductIds": payload.get("validProductIds", []),
+			"bundleId": str(payload.get("bundleId", "")),
 			"error": "",
 		}
+		if payload.has("productCount"):
+			result["productCount"] = int(payload.get("productCount", 0))
 		if status != "ok":
 			result.ok = false
 			result.error = status if status != "" else "unavailable"
@@ -192,10 +243,12 @@ class NativeStore extends Node:
 		NativeBridge.abandon_billing()
 		return {
 			"status": "timeout",
+			"stage": "timeout",
 			"platform": Billing._store_platform(),
 			"responseCode": "timeout",
-			"message": "Prices did not arrive within 15 seconds" if action == "products" else "The store did not respond",
+			"message": "timeout after 15s waiting for the store" if action == "products" else "The store did not respond",
 			"productIds": [Billing.CREDIT, Billing.UNLIMITED],
+			"productCount": 0,
 		}
 
 	func _receipt(payload: Dictionary) -> Dictionary:

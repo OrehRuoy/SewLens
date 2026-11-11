@@ -41,6 +41,8 @@ func before_each() -> void:
 func after_each() -> void:
 	Billing.prices = {}
 	Billing.price_state = "idle"
+	Billing.price_diagnostic = ""
+	Billing.show_price_diagnostic = true
 	Billing.store = Billing.get_node_or_null("NativeStore")
 	Fixture.restore_profile()
 
@@ -65,6 +67,16 @@ func test_a_store_failure_shows_a_retry_and_no_price() -> void:
 	assert_eq(Billing.price_state, "failed")
 	assert_true((main.find_child("PricesFailed", true, false) as Control).visible)
 	assert_has(Fixture.visible_texts(main), "Prices unavailable, tap to retry")
+	var detail := main.find_child("PriceDiagnostic", true, false) as Label
+	assert_true(detail.visible)
+	assert_true(detail.text.contains("invalid: orehruoy.sewlens.credit"))
+	assert_true((main.find_child("PriceDiagnosticCopy", true, false) as Button).visible)
+	Billing.show_price_diagnostic = false
+	Billing.updated.emit()
+	assert_false(detail.visible)
+	Billing.show_price_diagnostic = true
+	Billing.updated.emit()
+	assert_true(detail.visible)
 	assert_eq((main.find_child("CreditPrice", true, false) as Label).text, "—")
 	assert_true((main.find_child("BuyUnlimited", true, false) as Button).disabled)
 	store.ok = true

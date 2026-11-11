@@ -40,6 +40,17 @@ func enter(_params: Dictionary) -> void:
 	page.add_child(loading)
 	var failed := UI.card()
 	failed.add_child(UI.bullet(tr("pay_prices_failed"), "alert"))
+	var diagnostic := UI.caption("")
+	diagnostic.name = "PriceDiagnostic"
+	diagnostic.add_theme_font_size_override("font_size", 13)
+	diagnostic.add_theme_color_override("font_color", Color(0.4, 0.43, 0.47))
+	diagnostic.visible = false
+	failed.add_child(diagnostic)
+	var copy := UI.flat_button("Copy", "TextLink")
+	copy.name = "PriceDiagnosticCopy"
+	copy.visible = false
+	copy.pressed.connect(func() -> void: DisplayServer.clipboard_set(Billing.price_diagnostic))
+	failed.add_child(copy)
 	var retry := UI.flat_button(tr("btn_retry"), "TextLink")
 	retry.name = "PricesRetry"
 	retry.pressed.connect(func() -> void: Billing.refresh_prices())
@@ -159,6 +170,14 @@ func _refresh() -> void:
 	var state := Billing.price_state
 	(find_child("PriceLoading", true, false) as Control).visible = state == "loading"
 	(find_child("PricesFailed", true, false) as Control).visible = state == "failed"
+	var diagnostic := find_child("PriceDiagnostic", true, false) as Label
+	var copy := find_child("PriceDiagnosticCopy", true, false) as Button
+	var show_detail := Billing.show_price_diagnostic and state == "failed" and Billing.price_diagnostic != ""
+	if diagnostic:
+		diagnostic.text = Billing.price_diagnostic
+		diagnostic.visible = show_detail
+	if copy:
+		copy.visible = show_detail
 	var entitlement := find_child("Entitlement", true, false) as Label
 	var text := ""
 	if Billing.unlimited:

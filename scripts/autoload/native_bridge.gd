@@ -290,7 +290,12 @@ func _fail_ios_request() -> void:
 	if _pending_action == "photo":
 		_finish_photo("error", "")
 	elif _pending_action == "billing":
-		_finish_billing({"status": "error"})
+		var payload := {"status": "error", "stage": "timeout", "platform": "ios", "responseCode": "timeout"}
+		if _ios_action == "products":
+			payload["message"] = "timeout after 15s waiting for StoreKit"
+			payload["productIds"] = ["orehruoy.sewlens.credit", "orehruoy.sewlens.unlimited"]
+			payload["productCount"] = 0
+		_finish_billing(payload)
 	else:
 		_pending_action = ""
 		share_finished.emit("error")

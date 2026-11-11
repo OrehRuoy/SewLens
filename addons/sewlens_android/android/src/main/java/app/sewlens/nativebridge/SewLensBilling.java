@@ -50,6 +50,8 @@ final class SewLensBilling implements PurchasesUpdatedListener {
     private final AtomicInteger setupToken = new AtomicInteger();
     private Runnable setupTimeout;
     private BillingClient client;
+    private String bundleId = "";
+    private int lastProductCount = 0;
     private final Map<String, ProductDetails> products = new HashMap<>();
     private final List<String> lastUnfetched = new ArrayList<>();
     private String pendingFinish = "";
@@ -116,6 +118,7 @@ final class SewLensBilling implements PurchasesUpdatedListener {
             emit(status("error"));
             return;
         }
+        bundleId = activity.getPackageName();
         if (client != null && client.isReady()) {
             activity.runOnUiThread(next);
             return;
@@ -133,7 +136,7 @@ final class SewLensBilling implements PurchasesUpdatedListener {
                 return;
             }
             Log.w(TAG, "startConnection timed out before onBillingSetupFinished");
-            emit(errorPayload(-1, "BillingClient setup timed out", requestedIds()));
+            emit(report("timeout", -1, "setup timeout, onBillingSetupFinished never called", requestedIds(), new ArrayList<>(), 0));
         };
         setupTimeout = timeout;
         mainHandler.postDelayed(timeout, SETUP_TIMEOUT_MS);
@@ -153,7 +156,7 @@ final class SewLensBilling implements PurchasesUpdatedListener {
                     if (client == null || !client.isReady()) {
                         message = message == null || message.isEmpty() ? "BillingClient is not connected" : message;
                     }
-                    emit(errorPayload(result.getResponseCode(), message, requestedIds()));
+                    emit(report("connect", result.getResponseCode(), message, requestedIds(), new ArrayList<>(), 0));
                 }
             }
 
@@ -175,22 +178,29 @@ final class SewLensBilling implements PurchasesUpdatedListener {
                     }
                 }
                 if (prices.length() == 0) {
-                    List<String> ids = lastUnfetched.isEmpty() ? requestedIds() : lastUnfetched;
-                    emit(errorPayload(BillingClient.BillingResponseCode.OK, "Store returned no prices", ids));
+                    List<String> invalid = lastUnfetched.isEmpty() ? requestedIds() : lastUnfetched;
+                    String message = lastProductCount == 0
+                            ? "query returned 0 products with OK"
+                            : "query returned " + lastProductCount + " products but none had a price";
+                    emit(report("query", BillingClient.BillingResponseCode.OK, message, invalid, validIds(), lastProductCount));
                     return;
                 }
                 JSONObject payload = new JSONObject();
                 payload.put("status", "ok");
+                payload.put("stage", "query");
                 payload.put("platform", "android");
+                payload.put("bundleId", bundleId);
+                payload.put("responseCode", BillingClient.BillingResponseCode.OK);
+                payload.put("productCount", lastProductCount);
                 payload.put("prices", prices);
+                payload.put("validProductIds", new JSONArray(validIds()));
+                payload.put("unfetchedProductIds", new JSONArray(lastUnfetched));
                 if (!lastUnfetched.isEmpty()) {
-                    payload.put("responseCode", BillingClient.BillingResponseCode.OK);
                     payload.put("message", "unfetched product ids");
-                    payload.put("unfetchedProductIds", new JSONArray(lastUnfetched));
                 }
                 emit(payload.toString());
             } catch (Exception e) {
-                emit(errorPayload(-1, e.getMessage(), requestedIds()));
+                emit(report("query", -1, e.getMessage(), requestedIds(), new ArrayList<>(), lastProductCount));
             }
         });
     }
@@ -198,7 +208,7 @@ final class SewLensBilling implements PurchasesUpdatedListener {
     private void queryDetailsThen(Runnable next) {
         if (client == null || !client.isReady()) {
             Log.w(TAG, "Play Billing is not connected; product query skipped");
-            emit(errorPayload(-1, "BillingClient is not connected", requestedIds()));
+            emit(report("connect", -1, "BillingClient is not connected", requestedIds(), new ArrayList<>(), 0));
             return;
         }
         Log.i(TAG, "Play Billing connected; querying INAPP " + CREDIT + ", " + UNLIMITED);
@@ -211,9 +221,14 @@ final class SewLensBilling implements PurchasesUpdatedListener {
             lastUnfetched.clear();
             lastUnfetched.addAll(unfetchedIds(queryResult));
             List<ProductDetails> details = queryResult == null ? null : queryResult.getProductDetailsList();
+            lastProductCount = details == null ? 0 : details.size();
             if (result.getResponseCode() != BillingClient.BillingResponseCode.OK || details == null) {
                 List<String> ids = lastUnfetched.isEmpty() ? requestedIds() : lastUnfetched;
-                emit(errorPayload(result.getResponseCode(), result.getDebugMessage(), ids));
+                String message = result.getDebugMessage();
+                if (result.getResponseCode() == BillingClient.BillingResponseCode.OK && lastProductCount == 0) {
+                    message = "query returned 0 products with OK";
+                }
+                emit(report("query", result.getResponseCode(), message, ids, new ArrayList<>(), lastProductCount));
                 return;
             }
             products.clear();
@@ -354,14 +369,23 @@ final class SewLensBilling implements PurchasesUpdatedListener {
         Log.i(TAG, where + " responseCode=" + code + " debugMessage=" + message);
     }
 
-    private static String errorPayload(int code, String message, List<String> productIds) {
+    private List<String> validIds() {
+        return new ArrayList<>(products.keySet());
+    }
+
+    private String report(String stage, int code, String message, List<String> invalidIds, List<String> validIds, int productCount) {
         try {
             JSONObject payload = new JSONObject();
             payload.put("status", "unavailable");
+            payload.put("stage", stage);
             payload.put("platform", "android");
+            payload.put("bundleId", bundleId);
             payload.put("responseCode", code);
             payload.put("message", message == null ? "" : message);
-            payload.put("productIds", new JSONArray(productIds == null ? requestedIds() : productIds));
+            payload.put("productCount", productCount);
+            payload.put("productIds", new JSONArray(invalidIds == null ? requestedIds() : invalidIds));
+            payload.put("unfetchedProductIds", new JSONArray(invalidIds == null ? requestedIds() : invalidIds));
+            payload.put("validProductIds", new JSONArray(validIds == null ? new ArrayList<>() : validIds));
             return payload.toString();
         } catch (Exception e) {
             return status("unavailable");

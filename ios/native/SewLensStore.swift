@@ -59,43 +59,49 @@ enum SewLensStore {
     }
 
     private static func loadProducts(_ request: [String: Any]) async {
+        let runningAs = Bundle.main.bundleIdentifier ?? ""
         do {
-            NSLog("SewLens StoreKit requesting products: %@", sewlensProductIds.joined(separator: ","))
+            NSLog("SewLens StoreKit bundle %@ requesting products: %@", runningAs, sewlensProductIds.joined(separator: ","))
             let products = try await Product.products(for: sewlensProductIds)
             let returned = Set(products.map(\.id))
+            let valid = products.map(\.id)
             let invalid = sewlensProductIds.filter { !returned.contains($0) }
-            if !invalid.isEmpty {
-                NSLog("SewLens StoreKit invalid product ids: %@", invalid.joined(separator: ","))
-            }
+            NSLog("SewLens StoreKit returned %d products, invalid: %@", products.count, invalid.joined(separator: ","))
             var prices: [String: String] = [:]
             for product in products {
                 prices[product.id] = product.displayPrice
             }
             if prices.isEmpty {
                 let ids = invalid.isEmpty ? sewlensProductIds : invalid
-                write(request, billingError("error", "invalid", "no products returned", ids))
+                let message = "0 products, invalid: \(ids.joined(separator: ", "))"
+                write(request, productReport("unavailable", "query", "0", message, ids, [], products.count))
                 return
             }
-            var payload: [String: Any] = ["status": "ok", "prices": prices, "platform": "ios"]
-            if !invalid.isEmpty {
-                payload["unfetchedProductIds"] = invalid
-                payload["responseCode"] = "invalid"
-                payload["message"] = "invalid product ids"
-            }
+            var payload = productReport("ok", "query", "0", invalid.isEmpty ? "" : "invalid product ids", invalid, valid, products.count)
+            payload["prices"] = prices
             write(request, payload)
         } catch {
-            NSLog("SewLens StoreKit error: %@", String(describing: error))
-            write(request, billingError("error", String(describing: type(of: error)), error.localizedDescription, sewlensProductIds))
+            let ns = error as NSError
+            NSLog("SewLens StoreKit error domain=%@ code=%d %@", ns.domain, ns.code, ns.localizedDescription)
+            var payload = productReport("error", "query", "\(ns.domain)/\(ns.code)", ns.localizedDescription, sewlensProductIds, [], 0)
+            payload["domain"] = ns.domain
+            write(request, payload)
         }
     }
 
-    private static func billingError(_ status: String, _ code: String, _ message: String, _ ids: [String]) -> [String: Any] {
+    private static func productReport(_ status: String, _ stage: String, _ code: String, _ message: String, _ invalid: [String], _ valid: [String], _ count: Int) -> [String: Any] {
         return [
             "status": status,
+            "stage": stage,
             "platform": "ios",
+            "bundleId": Bundle.main.bundleIdentifier ?? "",
             "responseCode": code,
             "message": message,
-            "productIds": ids,
+            "productCount": count,
+            "productIds": invalid,
+            "invalidProductIds": invalid,
+            "unfetchedProductIds": invalid,
+            "validProductIds": valid,
         ]
     }
 

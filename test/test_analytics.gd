@@ -88,6 +88,47 @@ func test_paywall_and_billing_errors_are_logged() -> void:
 	main.queue_free()
 	Billing.prices = {}
 	Billing.price_state = "idle"
+	Billing.price_diagnostic = ""
+	Billing.store = Billing.get_node_or_null("NativeStore")
+
+
+func test_zero_products_logs_billing_error_and_shows_the_store_text() -> void:
+	var store := _Store.new()
+	store.load_result = {
+		"ok": true,
+		"prices": {},
+		"stage": "query",
+		"platform": "ios",
+		"responseCode": "0",
+		"message": "0 products, invalid: orehruoy.sewlens.credit, orehruoy.sewlens.unlimited",
+		"productCount": 0,
+		"invalidProductIds": ["orehruoy.sewlens.credit", "orehruoy.sewlens.unlimited"],
+		"validProductIds": [],
+		"bundleId": "com.sewlens.app",
+	}
+	Billing.store = store
+	Billing.prices = {}
+	Billing.price_state = "idle"
+	var main := Fixture.make_main(self)
+	Fixture.open(main, ["paywall", {}])
+	await _frames(2)
+	assert_eq(Billing.price_state, "failed")
+	var detail := main.find_child("PriceDiagnostic", true, false) as Label
+	assert_true(detail.visible)
+	assert_true(detail.text.contains("0 products, invalid: orehruoy.sewlens.credit, orehruoy.sewlens.unlimited"))
+	assert_true(detail.text.contains("bundle: com.sewlens.app"))
+	_assert_event("billing_error", {
+		"platform": "ios",
+		"stage": "query",
+		"response_code": "0",
+		"message": "0 products, invalid: orehruoy.sewlens.credit, orehruoy.sewlens.unlimited",
+		"product_count": 0,
+		"bundle_id": "com.sewlens.app",
+	})
+	main.queue_free()
+	Billing.prices = {}
+	Billing.price_state = "idle"
+	Billing.price_diagnostic = ""
 	Billing.store = Billing.get_node_or_null("NativeStore")
 
 
@@ -167,7 +208,10 @@ func _frames(count: int) -> void:
 class _Store:
 	extends RefCounted
 	var purchase_result := {"ok": false}
+	var load_result: Dictionary = {}
 	func load_prices() -> Dictionary:
+		if not load_result.is_empty():
+			return load_result
 		return {"ok": false}
 	func purchase(_product_id: String) -> Dictionary:
 		return purchase_result
