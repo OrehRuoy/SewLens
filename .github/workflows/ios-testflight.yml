@@ -94,8 +94,23 @@ jobs:
           xvfb-run -a -s "-screen 0 1280x1024x24" \
             "$GODOT_BIN" --rendering-driver opengl3 --path . -s res://test/locale_screens.gd
           COUNT=$(find build/screens -name '*.png' | wc -l)
-          echo "Saved $COUNT locale screenshots"
-          test "$COUNT" -eq 165
+          # One PNG per screen per pass. Passes are every locale, plus the
+          # 130% passes and the larger-text pass declared in locale_screens.gd.
+          EXPECTED=$(python3 - <<'PY'
+import re
+fixture = open("test/support/screen_fixture.gd", encoding="utf-8").read()
+screens = re.search(r"const SCREENS := \[(.*?)\n\]", fixture, re.S).group(1)
+screen_count = len(re.findall(r"^\s*\[", screens, re.M))
+locales = re.search(r"const LOCALES := \[(.*?)\]", fixture, re.S).group(1)
+locale_count = len(re.findall(r'"[^"]+"', locales))
+runner = open("test/locale_screens.gd", encoding="utf-8").read()
+expanded = len(re.findall(r'"[^"]+"', re.search(r"const EXPANDED_LOCALES := \[(.*?)\]", runner).group(1)))
+large = len(re.findall(r'"[^"]+"', re.search(r"const LARGE_TEXT_LOCALES := \[(.*?)\]", runner).group(1)))
+print(screen_count * (locale_count + expanded + large))
+PY
+)
+          echo "Saved $COUNT locale screenshots (expected $EXPECTED)"
+          test "$COUNT" -eq "$EXPECTED"
 
       - name: Upload locale screenshots
         if: always()
