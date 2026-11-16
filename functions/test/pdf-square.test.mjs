@@ -3,7 +3,7 @@ import { PDFDocument, PDFName } from 'pdf-lib'
 import { draftPattern } from '../src/draft-pattern.mjs'
 import { patternPieces } from '../src/geometry.mjs'
 import { cutCountPhrase, markLabel, uiLabels } from '../src/labels.mjs'
-import { labelIssues, layoutPieces, patternGrid } from '../src/pdf.mjs'
+import { cutCountCrossings, labelIssues, layoutPieces, patternGrid } from '../src/pdf.mjs'
 import { PT_PER_IN, PT_PER_MM } from '../src/units.mjs'
 
 function inflate(stream) {
@@ -239,6 +239,7 @@ describe('tiled pattern pages cover every piece', () => {
       for (const cell of grid.cells) expect(text).toContain(cell.id)
       expect(text).toContain(`A${layout.cols}`)
       expect(await labelIssues(pieces, paper, 'en')).toEqual([])
+      expect(await cutCountCrossings(pieces, paper, 'en')).toEqual([])
       const rects = await rectangles(result.pdfBase64)
       const metric = rects.find((rect) => Math.abs(rect.w / PT_PER_MM - 100) < 0.05 && Math.abs(rect.h / PT_PER_MM - 100) < 0.05)
       const imperial = rects.find((rect) => Math.abs(rect.w / PT_PER_IN - 4) < 0.001 && Math.abs(rect.h / PT_PER_IN - 4) < 0.001)
@@ -281,7 +282,9 @@ describe('tiled pattern pages cover every piece', () => {
         const at = result.svg.indexOf(`id="fs-stack-${piece.name}-part-${piece.name}"`)
         const nextAt = result.svg.indexOf('id="fs-stack-', at + 12)
         const inner = result.svg.slice(at, nextAt === -1 ? undefined : nextAt)
-        expect(inner).toMatch(/Cut \d|data-sewlens-cut="1"/)
+        const visible = spanText(inner).map((line) => line.trim()).filter(Boolean)
+        expect(visible).toContain(piece.cutCount)
+        expect(visible.filter((line) => line !== piece.cutCount && /\d/.test(line) && /cut/i.test(line))).toEqual([])
       }
       const labels = spanText(result.svg).join('\n')
       assertCleanText(labels, design)
@@ -340,7 +343,15 @@ describe('tiled pattern pages cover every piece', () => {
         pdf: false,
       })
       const skirtText = spanText(skirt.svg).join('\n')
-      expect(skirtText).toContain(cutCountPhrase(locale, { cut: 1, onFold: true }))
+      const onFold = cutCountPhrase(locale, { cut: 1, onFold: true })
+      expect(skirtText).toContain(onFold)
+      const band = patternPieces(skirt.svg).find((piece) => piece.name.includes('waistband'))
+      expect(band.cutCount).toBe(onFold)
+      const bandAt = skirt.svg.indexOf(`id="fs-stack-${band.name}-part-${band.name}"`)
+      const bandInner = skirt.svg.slice(bandAt, skirt.svg.indexOf('id="fs-stack-', bandAt + 12))
+      const bandLines = spanText(bandInner).map((line) => line.trim()).filter(Boolean)
+      expect(bandLines).toContain(onFold)
+      expect(bandLines.filter((line) => line !== onFold && /\d/.test(line) && line.length > 2)).toEqual([])
       assertCleanText(skirtText, `penelope ${locale}`)
     }
   }, 180000)

@@ -355,7 +355,24 @@ function stampCutCount(svg, idIndex, text) {
   return svg.slice(0, open) + stamped + svg.slice(end)
 }
 
-/** A cut-count line on every piece whose title was drawn before the cutlist. */
+function isCutInstruction(text, cutWord) {
+  const plain = collapseRepeats(String(text))
+  if (!plain || !cutWord || !/\d/.test(plain)) return false
+  return plain.toLowerCase().includes(String(cutWord).toLowerCase())
+}
+
+function cutTextElement(block, phrase) {
+  const open = /^<text\b[^>]*>/.exec(block)?.[0] || '<text class="sewlens-cut" font-size="8">'
+  const x = /<text\b[^>]*\sx="([^"]+)"/.exec(block)?.[1]
+    || /<tspan\b[^>]*\sx="([^"]+)"/.exec(block)?.[1]
+    || '4'
+  const y = /<text\b[^>]*\sy="([^"]+)"/.exec(block)?.[1]
+    || /<tspan\b[^>]*\sy="([^"]+)"/.exec(block)?.[1]
+    || '20'
+  return `${open}<tspan x="${x}" y="${y}">${escapeText(phrase)}</tspan></text>`
+}
+
+/** The visible cut count is the same phrase the PDF draws, from cutLinesFromStore. */
 function addCutCounts(svg, lines) {
   let next = svg
   for (const line of lines) {
@@ -365,23 +382,29 @@ function addCutCounts(svg, lines) {
     idIndex = partIdAt(next, line.part)
     const bounds = groupBounds(next, idIndex)
     if (!bounds) continue
-    const inner = next.slice(bounds.open, bounds.close)
-    if (textOf(inner).includes(line.text) || inner.includes('data-sewlens-cut="1"')) continue
-    if (partHasCutCount(inner, line.cutWord)) continue
-    const box = boxOf(inner, 'fabric') || boxOf(inner, '')
-    const x = box ? box.minX + Math.min(8, box.width * 0.12) : 4
-    const y = box ? box.minY + box.height * 0.42 : 20
-    const text = `<text class="sewlens-cut" data-sewlens-cut="1" font-size="8"><tspan x="${round(x)}" y="${round(y)}">${escapeText(line.text)}</tspan></text>`
-    next = `${next.slice(0, bounds.close)}${text}${next.slice(bounds.close)}`
+    let inner = next.slice(bounds.open, bounds.close)
+    let kept = false
+    inner = inner.replace(/<text\b[^>]*>[\s\S]*?<\/text>/g, (block) => {
+      const visible = collapseRepeats(textOf(block))
+      if (visible === line.text) {
+        if (kept) return ''
+        kept = true
+        return block
+      }
+      if (!isCutInstruction(visible, line.cutWord)) return block
+      if (kept) return ''
+      kept = true
+      return cutTextElement(block, line.text)
+    })
+    if (!kept) {
+      const box = boxOf(inner, 'fabric') || boxOf(inner, '')
+      const x = box ? box.minX + Math.min(8, box.width * 0.12) : 4
+      const y = box ? box.minY + box.height * 0.42 : 20
+      inner += `<text class="sewlens-cut" data-sewlens-cut="1" font-size="8"><tspan x="${round(x)}" y="${round(y)}">${escapeText(line.text)}</tspan></text>`
+    }
+    next = `${next.slice(0, bounds.open)}${inner}${next.slice(bounds.close)}`
   }
   return next
-}
-
-function partHasCutCount(inner, cutWord) {
-  if (!cutWord) return false
-  const plain = textOf(inner)
-  const word = cutWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`${word}\\s*\\d|\\d\\s*${word}`, 'i').test(plain)
 }
 
 /** A point on the long axis that does not sit on a fold line. */

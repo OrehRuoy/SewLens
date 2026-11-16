@@ -235,8 +235,7 @@ function drawPatternPage(page, context) {
   })
 }
 
-/** Overlapping or clipped label boxes, used by the export tests. */
-export async function labelIssues(pieces, paper, locale = 'en') {
+async function labelReport(pieces, paper, locale = 'en') {
   const size = PAPER_MM[paper]
   const doc = await PDFDocument.create()
   doc.registerFontkit(fontkit)
@@ -247,6 +246,7 @@ export async function labelIssues(pieces, paper, locale = 'en') {
   const placed = layoutPieces(pieces, paper)
   const pageHeight = size.height * PT_PER_MM
   const issues = []
+  const crossings = []
   for (const cell of patternCells(placed)) {
     if (cell.blank) continue
     const clipX = MARGIN_MM * PT_PER_MM
@@ -259,8 +259,19 @@ export async function labelIssues(pieces, paper, locale = 'en') {
     }
     const layout = layoutPageLabels(font, locale, placed.pieces, cell, placed.contentW, placed.contentH, pageHeight, bounds)
     for (const issue of layout.issues) issues.push(`${cell.id} ${issue}`)
+    for (const hit of layout.crossings) crossings.push(`${cell.id} ${hit}`)
   }
-  return issues
+  return { issues, crossings }
+}
+
+/** Overlapping or clipped label boxes, used by the export tests. */
+export async function labelIssues(pieces, paper, locale = 'en') {
+  return (await labelReport(pieces, paper, locale)).issues
+}
+
+/** Cut-count boxes that still cross a seam, cutting line, or mark. */
+export async function cutCountCrossings(pieces, paper, locale = 'en') {
+  return (await labelReport(pieces, paper, locale)).crossings
 }
 
 function drawAssemblyPage(page, context) {
@@ -345,17 +356,22 @@ function layoutPageLabels(font, locale, pieces, cell, contentW, contentH, pageHe
   const windowY = cell.row * contentH
   const planned = []
   const marks = []
+  const seams = []
   for (const piece of pieces) {
     if (!pieceHitsCell(piece, windowX, windowY, contentW, contentH)) continue
     for (const path of piece.paths) {
-      if (!String(path.className || '').includes('sewlens-mark')) continue
+      const kind = lineKind(path.className)
+      if (!kind) continue
       for (const segment of path.geometry?.segments || []) {
+        if (segment.length < 0.4) continue
         const start = canvasPoint(piece, segment.x1, segment.y1)
         const end = canvasPoint(piece, segment.x2, segment.y2)
         if (!segmentHitsRect(start.x, start.y, end.x, end.y, windowX, windowY, windowX + contentW, windowY + contentH)) continue
         const a = toPage(start.x, start.y, windowX, windowY, pageHeight)
         const b = toPage(end.x, end.y, windowX, windowY, pageHeight)
-        marks.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+        const line = { x1: a.x, y1: a.y, x2: b.x, y2: b.y }
+        if (kind === 'mark') marks.push(line)
+        else seams.push(line)
       }
     }
     const spot = nameSpot(piece, windowX, windowY, contentW, contentH)
@@ -367,6 +383,7 @@ function layoutPageLabels(font, locale, pieces, cell, contentW, contentH, pageHe
     if (piece.cutCount) {
       planned.push({
         text: piece.cutCount,
+        cut: true,
         size: 7,
         ...toPage(spot.x, spot.y + 6, windowX, windowY, pageHeight),
       })
@@ -377,7 +394,14 @@ function layoutPageLabels(font, locale, pieces, cell, contentW, contentH, pageHe
       if (anchor) planned.push({ text: path.label, size: 7, ...anchor })
     }
   }
-  return placeLabels(font, planned, marks, bounds)
+  return placeLabels(font, planned, marks, bounds, seams)
+}
+
+function lineKind(className) {
+  const classes = String(className || '').split(/\s+/)
+  if (classes.includes('sewlens-mark')) return 'mark'
+  if (classes.includes('fabric') || classes.includes('sa')) return 'seam'
+  return ''
 }
 
 function canvasPoint(piece, x, y) {
@@ -439,21 +463,24 @@ function boxHitsSegment(box, segment, pad = 2) {
   )
 }
 
-function placeLabels(font, planned, marks, bounds) {
+function placeLabels(font, planned, marks, bounds, seams = []) {
   const boxes = []
   const issues = []
+  const crossings = []
+  const linesFor = (item) => (item.cut ? marks.concat(seams) : marks)
   for (const item of planned) {
     const shifts = []
     for (const dy of [0, 12, -12, 24, -24, 36, -36, 48, 60]) {
       for (const dx of [0, 16, -16, 32, -32, 48, -48, 64]) shifts.push([dx, dy])
     }
     let chosen = null
+    const lines = linesFor(item)
     const fits = (box) => box.x >= bounds.x
       && box.y >= bounds.y
       && box.x + box.w <= bounds.x + bounds.w
       && box.y + box.h <= bounds.y + bounds.h
       && !boxes.some((other) => boxesOverlap(box, other))
-      && !marks.some((segment) => boxHitsSegment(box, segment))
+      && !lines.some((segment) => boxHitsSegment(box, segment))
     for (const [dx, dy] of shifts) {
       const box = textBox(font, item.text, item.x + dx, item.y + dy, item.size)
       if (fits(box)) {
@@ -488,9 +515,12 @@ function placeLabels(font, planned, marks, bounds) {
       issues.push(`no clear spot for “${item.text}”`)
       continue
     }
+    if (item.cut && lines.some((segment) => boxHitsSegment(chosen, segment, 0))) {
+      crossings.push(`“${item.text}” crosses a line`)
+    }
     boxes.push(chosen)
   }
-  return { boxes, issues }
+  return { boxes, issues, crossings }
 }
 
 function originXmm(placeX, windowX) {
