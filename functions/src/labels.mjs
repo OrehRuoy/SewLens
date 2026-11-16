@@ -257,6 +257,47 @@ function partPhrase(locale, name) {
   return translate(languageOf(locale), `parts.${token}`)
 }
 
+const MARKS = {
+  en: { foldHere: 'Fold here' },
+  de: { foldHere: 'Hier falten' },
+  fr: { foldHere: 'Plier ici' },
+  es: { foldHere: 'Doblar aquí' },
+  'pt-BR': { foldHere: 'Dobrar aqui' },
+  ja: { foldHere: 'ここで折る' },
+  it: { foldHere: 'Piegare qui' },
+  nl: { foldHere: 'Hier vouwen' },
+}
+
+const DESIGN_PHRASES = {}
+for (const design of Object.values(freesewingDesigns)) {
+  for (const group of [design?.p, design?.s, design?.o]) {
+    if (!group) continue
+    for (const [key, value] of Object.entries(group)) {
+      const phrase = typeof value === 'string' ? value : value?.t
+      if (typeof phrase === 'string' && phrase && !DESIGN_PHRASES[key]) DESIGN_PHRASES[key] = phrase
+    }
+  }
+}
+
+/** A sewing mark such as "foldHere", in the locale, with English fallback. */
+export function markLabel(locale, key) {
+  return barePhrase(locale, key) || key
+}
+
+function barePhrase(locale, token) {
+  const language = languageOf(locale)
+  if (MARKS[language]?.[token]) return MARKS[language][token]
+  if (ANNOTATIONS[language]?.[token]) return ANNOTATIONS[language][token]
+  if (token === 'grainline' || token === 'cutOnFold' || token === 'cutOnFoldAndGrainline') {
+    return annotationPhrase(locale, token)
+  }
+  return MARKS.en[token] || DESIGN_PHRASES[token] || ''
+}
+
+function replaceBareKeys(locale, text) {
+  return text.replace(/\b[a-z][A-Za-z0-9]*[A-Z][A-Za-z0-9]*\b/g, (token) => barePhrase(locale, token) || token)
+}
+
 function annotationPhrase(locale, key) {
   const language = languageOf(locale)
   if (key === 'grainline') return translate(language, 'ui.grainline')
@@ -300,9 +341,12 @@ export function translatePhrase(locale, text) {
     for (const token of PART_TOKENS) {
       if (text === catalogs.en.parts[token]) return translate(languageOf(locale), `parts.${token}`)
     }
-    return text
+    return replaceBareKeys(locale, text)
   }
-  return text.replace(/(^|[\s])([A-Za-z][A-Za-z0-9-]*)[:]([A-Za-z0-9_.-]+)/g, (match, lead, namespace, key) => {
-    return lead + phraseFor(locale, namespace, key)
-  })
+  return replaceBareKeys(
+    locale,
+    text.replace(/(^|[\s])([A-Za-z][A-Za-z0-9-]*)[:]([A-Za-z0-9_.-]+)/g, (match, lead, namespace, key) => {
+      return lead + phraseFor(locale, namespace, key)
+    })
+  )
 }

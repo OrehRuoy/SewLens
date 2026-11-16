@@ -104,6 +104,9 @@ func _render() -> void:
 	terms.name = "TermsButton"
 	terms.pressed.connect(func() -> void: NativeBridge.open_url(UI.TERMS_URL))
 	page.add_child(UI.group([intro, licenses, privacy, terms]))
+	var engine := UI.caption(tr("about_pattern_engine"))
+	engine.name = "PatternEngineCredit"
+	page.add_child(engine)
 
 	page.add_child(_gap())
 	page.add_child(UI.section(tr("section_also_by_me")))

@@ -276,6 +276,7 @@ func test_the_clickety_row_shows_only_on_ios() -> void:
 	assert_eq(android_more.text, "More apps by me")
 	assert_eq(str(android_more.get_meta("url")), settings.MORE_APPS_ANDROID)
 	assert_has(Fixture.visible_texts(main), "Also by me")
+	assert_has(Fixture.visible_texts(main), "Pattern engine: FreeSewing (MIT)")
 	settings.ios_for_test = true
 	main.go("settings", {}, true)
 	await get_tree().process_frame

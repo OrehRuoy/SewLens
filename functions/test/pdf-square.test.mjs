@@ -2,7 +2,7 @@ import { inflateSync } from 'node:zlib'
 import { PDFDocument, PDFName } from 'pdf-lib'
 import { draftPattern } from '../src/draft-pattern.mjs'
 import { patternPieces } from '../src/geometry.mjs'
-import { uiLabels } from '../src/labels.mjs'
+import { markLabel, uiLabels } from '../src/labels.mjs'
 import { layoutPieces } from '../src/pdf.mjs'
 import { PT_PER_IN, PT_PER_MM } from '../src/units.mjs'
 
@@ -70,6 +70,7 @@ function decodePage(content, maps) {
   for (const match of content.matchAll(/\/([^\s]+)\s+[0-9.]+\s+Tf|<([0-9A-Fa-f]+)>\s*Tj/g)) {
     if (match[1]) current = maps.get(match[1]) || null
     else if (match[2] && current) {
+      if (text && !text.endsWith('\n')) text += '\n'
       for (let index = 0; index < match[2].length; index += 4) {
         text += current.get(match[2].slice(index, index + 4).toUpperCase()) || ''
       }
@@ -95,7 +96,7 @@ async function pdfText(pdfBase64) {
   const doc = await openPdf(pdfBase64)
   let text = ''
   for (const page of doc.getPages()) {
-    text += decodePage(pageStreams(doc, page), fontMaps(doc, page))
+    text += `${decodePage(pageStreams(doc, page), fontMaps(doc, page))}\n`
   }
   return text
 }
@@ -200,6 +201,16 @@ function spanText(svg) {
   return [...svg.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map((match) => match[1])
 }
 
+const KEYISH = /\b[a-z]+[A-Z][A-Za-z0-9]*\b|\b[A-Za-z][A-Za-z0-9-]*:[A-Za-z0-9_.-]+/
+const BRANDING = /FreeSewing|ephemeral|patron|\bv\d+\.\d+\.\d+\b|\b20\d{2}\b/i
+
+function assertCleanText(text, design) {
+  const key = text.match(KEYISH)
+  if (key) throw new Error(`${design} still has a raw key “${key[0]}”`)
+  const brand = text.match(BRANDING)
+  if (brand) throw new Error(`${design} still has “${brand[0]}”`)
+}
+
 describe('tiled pattern pages cover every piece', () => {
   test.each(['aaron', 'teagan', 'penelope'].flatMap((design) => ['a4', 'letter'].map((paper) => [design, paper])))(
     '%s on %s keeps every piece inside the page grid',
@@ -224,26 +235,63 @@ describe('tiled pattern pages cover every piece', () => {
       expect(doc.getPageCount()).toBe(layout.rows * layout.cols + 2)
       const text = await pdfText(result.pdfBase64)
       expect(text).toContain(`A${layout.cols}`)
+      const rects = await rectangles(result.pdfBase64)
+      const metric = rects.find((rect) => Math.abs(rect.w / PT_PER_MM - 100) < 0.05 && Math.abs(rect.h / PT_PER_MM - 100) < 0.05)
+      const imperial = rects.find((rect) => Math.abs(rect.w / PT_PER_IN - 4) < 0.001 && Math.abs(rect.h / PT_PER_IN - 4) < 0.001)
+      expect((metric.w / PT_PER_MM).toFixed(1)).toBe('100.0')
+      expect((imperial.w / PT_PER_IN).toFixed(3)).toBe('4.000')
       const style = result.svg.match(/<style type="text\/css">[\s\S]*?<\/style>/)
       expect(style).toBeTruthy()
       expect(style[0]).toMatch(/fill:\s*none/)
       expect(style[0].length).toBeGreaterThan(200)
-      expect(result.svg).toMatch(/fill:\s*none/)
-      expect(result.svg).toMatch(/\.hidden[\s\S]{0,80}display:\s*none/)
-      expect(result.svg).toMatch(/\.note[\s\S]{0,40}display:\s*none/)
+      expect(result.svg).toMatch(/\.hidden[\s\S]{0,120}display:\s*none/)
+      expect(result.svg).toMatch(/\.sewlens-mark[\s\S]{0,160}stroke:\s*#212121/)
+      const marks = result.svg.match(/<path\b[^>]*class="[^"]*\bsewlens-mark\b[^"]*"[^>]*\/>/g) || []
+      expect(marks.length).toBeGreaterThan(0)
+      for (const path of marks) expect(path).not.toMatch(/display:\s*none/)
       for (const path of result.svg.match(/<path\b[^>]*class="[^"]*\bfabric\b[^"]*"[^>]*\/>/g) || []) {
         expect(path).toMatch(/fill="none"/)
         expect(path).not.toMatch(/fill="(?:#000(?:000)?|black)"/i)
       }
+      for (const piece of pieces) {
+        expect(piece.paths.some((path) => path.className.includes('sewlens-mark'))).toBe(true)
+      }
       const labels = spanText(result.svg).join('\n')
-      expect(labels).not.toMatch(/plugin-annotations:[A-Za-z]/)
-      expect(labels).not.toMatch(new RegExp(`${design}:[A-Za-z]`))
+      assertCleanText(labels, design)
+      assertCleanText(text, design)
       expect(labels).toContain('Front')
       expect(labels).toContain('Back')
       expect(labels).toMatch(/Cut \d/)
       expect(labels).toMatch(/Grainline|Cut on fold/)
-      if (design === 'teagan') expect(labels).toContain('Sleeve')
+      expect(text).toMatch(/Grainline|Cut on fold/)
+      if (design === 'teagan') {
+        expect(labels).toContain('Sleeve')
+        expect(result.svg).toContain('sewlens-mark')
+        expect(result.svg).not.toMatch(/xlink:href="#notch"/)
+      }
+      if (design === 'aaron') {
+        expect(labels).toContain('Fold here')
+        expect(text).toContain('Fold here')
+      }
     },
     60000
   )
+
+  test('fold and grainline text is translated in every locale', async () => {
+    for (const locale of ['en', 'de', 'fr', 'es', 'pt-BR', 'ja', 'it', 'nl']) {
+      const result = await draftPattern({
+        design: 'aaron',
+        measurements: GARMENTS.aaron,
+        units: 'metric',
+        locale,
+        paper: 'a4',
+        pdf: false,
+      })
+      const labels = spanText(result.svg).join('\n')
+      expect(labels).toContain(uiLabels(locale).grainline)
+      expect(labels).toContain(uiLabels(locale).cutOnFold)
+      expect(labels).toContain(markLabel(locale, 'foldHere'))
+      assertCleanText(labels, `aaron ${locale}`)
+    }
+  }, 60000)
 })

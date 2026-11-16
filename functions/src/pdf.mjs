@@ -179,7 +179,7 @@ function drawCalibrationPage(page, context) {
 }
 
 function drawPatternPage(page, context) {
-  const { font, locale, pieces, cell, contentW, contentH, pageWidth, pageHeight, labels, gridSize, index } = context
+  const { font, locale, pieces, cell, contentW, contentH, pageHeight, labels, gridSize, index } = context
   const originX = MARGIN_MM
   const originTop = MARGIN_MM
   const windowX = cell.col * contentW
@@ -200,14 +200,15 @@ function drawPatternPage(page, context) {
       })
     }
     const labelPoint = toPage(piece.placeX, piece.placeY, windowX, windowY, pageHeight)
-    if (labelPoint.x > 0 && labelPoint.y > 0 && labelPoint.x < pageWidth && labelPoint.y < pageHeight) {
-      page.drawText(pieceLabel(locale, piece.name), {
-        x: Math.max(clipX, labelPoint.x),
-        y: Math.min(pageHeight - 10, labelPoint.y),
-        size: 8,
-        font,
-        color: BLACK,
-      })
+    drawInsetText(page, pieceLabel(locale, piece.name), labelPoint, {
+      font, size: 8, clipX, clipY, contentW, contentH,
+    })
+    for (const path of piece.paths) {
+      if (!path.label) continue
+      const spot = pointOnPage(piece, path, windowX, windowY, contentW, contentH, pageHeight)
+      if (spot) {
+        drawInsetText(page, path.label, spot, { font, size: 7, clipX, clipY, contentW, contentH })
+      }
     }
   }
   page.pushOperators(popGraphicsState())
@@ -246,6 +247,32 @@ function drawAssemblyPage(page, context) {
     page.drawText(entry.id, { x: x + 6, y: y + 10, size: 9, font, color: BLACK })
   })
   void pageWidth
+}
+
+function drawInsetText(page, text, point, box) {
+  const { font, size, clipX, clipY, contentW, contentH } = box
+  const right = clipX + contentW * PT_PER_MM
+  const top = clipY + contentH * PT_PER_MM
+  if (point.x < clipX - 2 || point.x > right + 2 || point.y < clipY - 2 || point.y > top + 2) return
+  page.drawText(text, {
+    x: Math.min(Math.max(point.x, clipX + 2), right - 4),
+    y: Math.min(Math.max(point.y, clipY + 2), top - size - 3),
+    size,
+    font,
+    color: BLACK,
+  })
+}
+
+function pointOnPage(piece, path, windowX, windowY, contentW, contentH, pageHeight) {
+  const points = path.geometry?.points || []
+  for (const point of points) {
+    const canvasX = piece.placeX + (point.x - piece.minX)
+    const canvasY = piece.placeY + (point.y - piece.minY)
+    if (canvasX < windowX - 0.5 || canvasX >= windowX + contentW + 0.5) continue
+    if (canvasY < windowY - 0.5 || canvasY >= windowY + contentH + 0.5) continue
+    return toPage(canvasX, canvasY, windowX, windowY, pageHeight)
+  }
+  return null
 }
 
 function originXmm(placeX, windowX) {

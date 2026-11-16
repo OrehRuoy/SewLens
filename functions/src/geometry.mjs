@@ -162,8 +162,9 @@ export function pathsInPart(svg, partName) {
     const attrs = match[1]
     const d = /(?:^|\s)d="([^"]*)"/.exec(attrs)?.[1] || ''
     const className = /class="([^"]*)"/.exec(attrs)?.[1] || ''
+    const label = /data-sewlens-label="([^"]*)"/.exec(attrs)?.[1] || ''
     const clean = sanitizePath(d)
-    if (clean) paths.push({ d: clean, className, geometry: flattenPath(clean) })
+    if (clean) paths.push({ d: clean, className, label, geometry: flattenPath(clean) })
     match = pattern.exec(chunk)
   }
   return paths
@@ -345,7 +346,10 @@ export function patternPieces(svg) {
   for (const name of renderedPartNames(svg)) {
     const paths = pathsInPart(svg, name).filter((path) => {
       const classes = classOf(path).split(/\s+/)
-      return !classes.includes('hidden') && !classes.includes('note')
+      if (classes.includes('hidden') || classes.includes('scalebox')) return false
+      if (classes.includes('sewlens-mark')) return true
+      if (classes.includes('note') || classes.includes('help')) return false
+      return true
     })
     let minX = Infinity
     let minY = Infinity
