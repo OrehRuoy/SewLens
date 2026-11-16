@@ -1,0 +1,60 @@
+{
+  "design": "teagan",
+  "displayName": "Teagan T-shirt",
+  "locale": "en",
+  "units": "metric",
+  "paper": "a4",
+  "seamAllowanceMm": 10,
+  "measurements": {
+    "biceps": 32,
+    "chest": 96,
+    "hpsToBust": 27,
+    "hpsToWaistBack": 45,
+    "neck": 38,
+    "shoulderToShoulder": 42,
+    "shoulderSlope": 13,
+    "waistToArmpit": 21,
+    "waistToHips": 14,
+    "hips": 98,
+    "waist": 82,
+    "shoulderToWrist": 62,
+    "wrist": 17
+  },
+  "measurementSource": "functions/test/dimensions.test.mjs BASE_MM, measurementsFor(1), only the design required keys",
+  "pieces": [
+    {
+      "id": "teagan.back",
+      "label": "Back",
+      "widthMm": 299.1,
+      "heightMm": 709.2
+    },
+    {
+      "id": "teagan.front",
+      "label": "Front",
+      "widthMm": 299.1,
+      "heightMm": 709.2
+    },
+    {
+      "id": "teagan.sleeve",
+      "label": "Sleeve",
+      "widthMm": 399.4,
+      "heightMm": 248.5
+    }
+  ],
+  "pdfPages": 23,
+  "contentWidthMm": 186,
+  "piecesWiderThanContent": [
+    "teagan.back",
+    "teagan.front",
+    "teagan.sleeve"
+  ],
+  "viewBoxMm": {
+    "width": 1009.61,
+    "height": 713.18
+  },
+  "called": [
+    "functions/src/draft-pattern.mjs draftPattern",
+    "functions/src/pdf.mjs renderPatternPdf (via draftPattern)",
+    "pattern.render() SVG (via draftPattern)"
+  ]
+}

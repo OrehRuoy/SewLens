@@ -1,0 +1,51 @@
+{
+  "design": "penelope",
+  "displayName": "Penelope pencil skirt",
+  "locale": "en",
+  "units": "metric",
+  "paper": "a4",
+  "seamAllowanceMm": 10,
+  "measurements": {
+    "waist": 82,
+    "seat": 100,
+    "waistToHips": 14,
+    "waistToSeat": 22,
+    "waistToKnee": 56
+  },
+  "measurementSource": "functions/test/dimensions.test.mjs BASE_MM, measurementsFor(1), only the design required keys",
+  "pieces": [
+    {
+      "id": "penelope.back",
+      "label": "Back",
+      "widthMm": 299.4,
+      "heightMm": 604
+    },
+    {
+      "id": "penelope.front",
+      "label": "Front",
+      "widthMm": 261,
+      "heightMm": 603.6
+    },
+    {
+      "id": "penelope.waistband",
+      "label": "Waistband",
+      "widthMm": 76,
+      "heightMm": 424.1
+    }
+  ],
+  "pdfPages": 9,
+  "contentWidthMm": 186,
+  "piecesWiderThanContent": [
+    "penelope.back",
+    "penelope.front"
+  ],
+  "viewBoxMm": {
+    "width": 648.4,
+    "height": 608.01
+  },
+  "called": [
+    "functions/src/draft-pattern.mjs draftPattern",
+    "functions/src/pdf.mjs renderPatternPdf (via draftPattern)",
+    "pattern.render() SVG (via draftPattern)"
+  ]
+}

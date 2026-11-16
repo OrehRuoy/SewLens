@@ -1,0 +1,177 @@
+{
+  "designs": [
+    {
+      "design": "aaron",
+      "displayName": "Aaron A-Shirt",
+      "locale": "en",
+      "units": "metric",
+      "paper": "a4",
+      "seamAllowanceMm": 10,
+      "measurements": {
+        "biceps": 32,
+        "chest": 96,
+        "hpsToBust": 27,
+        "hpsToWaistBack": 45,
+        "neck": 38,
+        "shoulderToShoulder": 42,
+        "shoulderSlope": 13,
+        "waistToArmpit": 21,
+        "waistToHips": 14,
+        "hips": 98
+      },
+      "measurementSource": "functions/test/dimensions.test.mjs BASE_MM, measurementsFor(1), only the design required keys",
+      "pieces": [
+        {
+          "id": "aaron.armBinding",
+          "label": "Binding",
+          "widthMm": 60,
+          "heightMm": 592.9
+        },
+        {
+          "id": "aaron.back",
+          "label": "Back",
+          "widthMm": 261.4,
+          "heightMm": 676.2
+        },
+        {
+          "id": "aaron.front",
+          "label": "Front",
+          "widthMm": 261.4,
+          "heightMm": 676.2
+        },
+        {
+          "id": "aaron.neckBinding",
+          "label": "Binding",
+          "widthMm": 60,
+          "heightMm": 546.9
+        }
+      ],
+      "pdfPages": 12,
+      "contentWidthMm": 186,
+      "piecesWiderThanContent": [
+        "aaron.back",
+        "aaron.front"
+      ],
+      "viewBoxMm": {
+        "width": 658.74,
+        "height": 680.17
+      },
+      "called": [
+        "functions/src/draft-pattern.mjs draftPattern",
+        "functions/src/pdf.mjs renderPatternPdf (via draftPattern)",
+        "pattern.render() SVG (via draftPattern)"
+      ]
+    },
+    {
+      "design": "teagan",
+      "displayName": "Teagan T-shirt",
+      "locale": "en",
+      "units": "metric",
+      "paper": "a4",
+      "seamAllowanceMm": 10,
+      "measurements": {
+        "biceps": 32,
+        "chest": 96,
+        "hpsToBust": 27,
+        "hpsToWaistBack": 45,
+        "neck": 38,
+        "shoulderToShoulder": 42,
+        "shoulderSlope": 13,
+        "waistToArmpit": 21,
+        "waistToHips": 14,
+        "hips": 98,
+        "waist": 82,
+        "shoulderToWrist": 62,
+        "wrist": 17
+      },
+      "measurementSource": "functions/test/dimensions.test.mjs BASE_MM, measurementsFor(1), only the design required keys",
+      "pieces": [
+        {
+          "id": "teagan.back",
+          "label": "Back",
+          "widthMm": 299.1,
+          "heightMm": 709.2
+        },
+        {
+          "id": "teagan.front",
+          "label": "Front",
+          "widthMm": 299.1,
+          "heightMm": 709.2
+        },
+        {
+          "id": "teagan.sleeve",
+          "label": "Sleeve",
+          "widthMm": 399.4,
+          "heightMm": 248.5
+        }
+      ],
+      "pdfPages": 23,
+      "contentWidthMm": 186,
+      "piecesWiderThanContent": [
+        "teagan.back",
+        "teagan.front",
+        "teagan.sleeve"
+      ],
+      "viewBoxMm": {
+        "width": 1009.61,
+        "height": 713.18
+      },
+      "called": [
+        "functions/src/draft-pattern.mjs draftPattern",
+        "functions/src/pdf.mjs renderPatternPdf (via draftPattern)",
+        "pattern.render() SVG (via draftPattern)"
+      ]
+    },
+    {
+      "design": "penelope",
+      "displayName": "Penelope pencil skirt",
+      "locale": "en",
+      "units": "metric",
+      "paper": "a4",
+      "seamAllowanceMm": 10,
+      "measurements": {
+        "waist": 82,
+        "seat": 100,
+        "waistToHips": 14,
+        "waistToSeat": 22,
+        "waistToKnee": 56
+      },
+      "measurementSource": "functions/test/dimensions.test.mjs BASE_MM, measurementsFor(1), only the design required keys",
+      "pieces": [
+        {
+          "id": "penelope.back",
+          "label": "Back",
+          "widthMm": 299.4,
+          "heightMm": 604
+        },
+        {
+          "id": "penelope.front",
+          "label": "Front",
+          "widthMm": 261,
+          "heightMm": 603.6
+        },
+        {
+          "id": "penelope.waistband",
+          "label": "Waistband",
+          "widthMm": 76,
+          "heightMm": 424.1
+        }
+      ],
+      "pdfPages": 9,
+      "contentWidthMm": 186,
+      "piecesWiderThanContent": [
+        "penelope.back",
+        "penelope.front"
+      ],
+      "viewBoxMm": {
+        "width": 648.4,
+        "height": 608.01
+      },
+      "called": [
+        "functions/src/draft-pattern.mjs draftPattern",
+        "functions/src/pdf.mjs renderPatternPdf (via draftPattern)",
+        "pattern.render() SVG (via draftPattern)"
+      ]
+    }
+  ]
+}
