@@ -10,6 +10,7 @@ const REGIONS := {"en": "en_US", "de": "de_DE", "fr": "fr_FR", "es": "es_ES", "p
 const PHONE := Vector2(390, 844)
 const PROFILE_PATH := "user://test_fixture_profile.json"
 const PDF_PATH := "user://test_fixture.pdf"
+const PATTERN_DIR := "user://test_fixture_patterns"
 const SVG := "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"120\"><rect x=\"10\" y=\"10\" width=\"80\" height=\"100\" fill=\"none\" stroke=\"#1c3a5c\" stroke-width=\"2\"/><rect x=\"110\" y=\"10\" width=\"80\" height=\"100\" fill=\"none\" stroke=\"#1c3a5c\" stroke-width=\"2\"/></svg>"
 
 ## [screen name, params]. "measure_more" opens measuring on its second step.
@@ -30,6 +31,7 @@ const SCREENS := [
 	["paywall", {}],
 	["licenses", {}],
 	["settings", {}],
+	["patterns", {}],
 ]
 
 
@@ -43,6 +45,20 @@ static func screen_label(entry: Array) -> String:
 static func prepare_profile() -> void:
 	Profile.path = PROFILE_PATH
 	Profile.load_profile()
+	NativeBridge.review_blocked = false
+	NativeBridge.review_requests = 0
+	NativeBridge.export_result_for_test = ""
+	PatternLibrary.directory = PATTERN_DIR
+	if DirAccess.dir_exists_absolute(PATTERN_DIR):
+		var folder := DirAccess.open(PATTERN_DIR)
+		if folder:
+			folder.list_dir_begin()
+			var name := folder.get_next()
+			while name != "":
+				if not folder.current_is_dir():
+					DirAccess.remove_absolute(ProjectSettings.globalize_path(PATTERN_DIR.path_join(name)))
+				name = folder.get_next()
+			folder.list_dir_end()
 	Profile.onboarded = true
 	Profile.measurements = {"chest": 1000.0, "waist": 820.0, "neck": 380.0, "shoulderSlope": 13.0}
 	var file := FileAccess.open(PDF_PATH, FileAccess.WRITE)
@@ -53,6 +69,8 @@ static func prepare_profile() -> void:
 static func restore_profile() -> void:
 	Profile.path = Profile.DEFAULT_PATH
 	Profile.load_profile()
+	PatternLibrary.directory = PatternLibrary.DEFAULT_DIR
+	NativeBridge.export_result_for_test = ""
 	for path in [PROFILE_PATH, PDF_PATH]:
 		if FileAccess.file_exists(path):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))

@@ -1,6 +1,6 @@
 extends GutTest
 ## Funnel events carry a locale, a language change redraws the screen,
-## and the review prompt appears after the second pattern.
+## and the store review follows the first successful print, share, or save.
 
 const Fixture := preload("res://test/support/screen_fixture.gd")
 const MockTransport := preload("res://test/support/mock_transport.gd")
@@ -227,7 +227,50 @@ func test_language_switch_rerenders_the_open_screen() -> void:
 	main.queue_free()
 
 
-func test_review_prompt_appears_after_the_second_pattern() -> void:
+func test_review_follows_a_successful_export_not_the_pattern_count() -> void:
+	NativeBridge.review_requests = 0
+	NativeBridge.review_blocked = false
+	Profile.review_version = ""
+	Profile.review_asked_at = 0
+	Profile.successful_patterns = 0
+	NativeBridge.note_pattern_export("print", "ok")
+	assert_eq(NativeBridge.review_requests, 1, "the free pattern's first print asks")
+	assert_eq(Profile.successful_patterns, 0, "the ask does not depend on the pattern count")
+	NativeBridge.note_pattern_export("share", "opened")
+	assert_eq(NativeBridge.review_requests, 1, "once per app version")
+	NativeBridge.review_blocked = false
+	Profile.review_version = "1.0.19"
+	Profile.review_asked_at = int(Time.get_unix_time_from_system()) - 10 * 86400
+	NativeBridge.note_pattern_export("print", "started")
+	assert_eq(NativeBridge.review_requests, 1, "30 days have not passed")
+	Profile.review_asked_at = int(Time.get_unix_time_from_system()) - 40 * 86400
+	NativeBridge.note_pattern_export("save", "ok")
+	assert_eq(NativeBridge.review_requests, 2, "a later version can ask after 30 days")
+	NativeBridge.review_blocked = false
+	Profile.review_version = ""
+	Profile.review_asked_at = 0
+	NativeBridge.note_pattern_export("share", "cancelled")
+	NativeBridge.note_pattern_export("print", "cancelled")
+	NativeBridge.note_pattern_export("save", "cancelled")
+	assert_eq(NativeBridge.review_requests, 2, "a cancel does not ask")
+	NativeBridge.note_pattern_export("share", "error")
+	assert_eq(NativeBridge.review_requests, 2)
+	assert_true(NativeBridge.review_blocked)
+	NativeBridge.note_pattern_export("print", "ok")
+	assert_eq(NativeBridge.review_requests, 2, "an error blocks the rest of the session")
+	NativeBridge.review_blocked = false
+	Profile.review_version = ""
+	Profile.review_asked_at = 0
+	Billing._logged_billing_stages = {}
+	Billing._log_billing_error({"stage": "query", "status": "error", "message": "down"})
+	NativeBridge.note_pattern_export("print", "ok")
+	assert_eq(NativeBridge.review_requests, 2, "a billing error blocks the session")
+	NativeBridge.review_blocked = false
+	Billing._log_billing_error({"status": "cancelled", "stage": "purchase"})
+	assert_false(NativeBridge.review_blocked, "dismissing the store sheet is not a failure")
+	NativeBridge.block_review()
+	NativeBridge.note_pattern_export("save", "ok")
+	assert_eq(NativeBridge.review_requests, 2, "a purchase or restore blocks the session")
 	var main := Fixture.make_main(self)
 	main.session = Fixture.session()
 	main.session.erase("draft")
@@ -240,9 +283,9 @@ func test_review_prompt_appears_after_the_second_pattern() -> void:
 	var screen: Screen = main.current()
 	screen._start()
 	await _frames(6)
-	assert_not_null(main.find_child("ReviewCard", true, false))
-	assert_has(Fixture.visible_texts(main), "Enjoying SewLens?")
+	assert_null(main.find_child("ReviewCard", true, false))
 	assert_eq(Profile.successful_patterns, 2)
+	assert_does_not_have(Fixture.visible_texts(main), "Enjoying SewLens?")
 	main.queue_free()
 
 

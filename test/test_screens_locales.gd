@@ -90,7 +90,7 @@ func test_every_screen_loads_in_every_locale() -> void:
 			assert_gt(texts.size(), 2, where)
 			var raw := texts.filter(func(text: String) -> bool: return Fixture.looks_like_key(text))
 			assert_eq(raw, [], "raw keys on %s" % where)
-	assert_eq(main.get_node("Title").text, tr("title_settings"))
+	assert_eq(main.get_node("Title").text, tr("title_my_patterns"))
 
 
 func test_header_title_follows_the_screen() -> void:

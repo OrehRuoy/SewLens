@@ -74,6 +74,105 @@ export function measurementLabel(locale, name) {
   return translate(locale, `measurements.${name}`)
 }
 
+const CUTS = {
+  en: {
+    plain: 'Cut {n}',
+    fold: 'Cut {n} on fold',
+    mirrored: 'Cut {n} mirrored',
+    bias: 'Cut {n} on the bias',
+    mirroredFold: 'Cut {n} mirrored on fold',
+  },
+  de: {
+    plain: '{n} schneiden',
+    fold: '{n} im Bruch schneiden',
+    mirrored: '{n} gespiegelt schneiden',
+    bias: '{n} im Schrägschnitt schneiden',
+    mirroredFold: '{n} gespiegelt im Bruch schneiden',
+  },
+  fr: {
+    plain: 'Couper {n}',
+    fold: 'Couper {n} au pli',
+    mirrored: 'Couper {n} en miroir',
+    bias: 'Couper {n} dans le biais',
+    mirroredFold: 'Couper {n} en miroir au pli',
+  },
+  es: {
+    plain: 'Cortar {n}',
+    fold: 'Cortar {n} al doblez',
+    mirrored: 'Cortar {n} en espejo',
+    bias: 'Cortar {n} al sesgo',
+    mirroredFold: 'Cortar {n} en espejo al doblez',
+  },
+  'pt-BR': {
+    plain: 'Cortar {n}',
+    fold: 'Cortar {n} na dobra',
+    mirrored: 'Cortar {n} espelhado',
+    bias: 'Cortar {n} no viés',
+    mirroredFold: 'Cortar {n} espelhado na dobra',
+  },
+  ja: {
+    plain: '{n}枚裁つ',
+    fold: '折り山で{n}枚裁つ',
+    mirrored: '左右対称で{n}枚裁つ',
+    bias: 'バイアスで{n}枚裁つ',
+    mirroredFold: '折り山で左右対称に{n}枚裁つ',
+  },
+  it: {
+    plain: 'Tagliare {n}',
+    fold: 'Tagliare {n} sulla piega',
+    mirrored: 'Tagliare {n} a specchio',
+    bias: 'Tagliare {n} in sbieco',
+    mirroredFold: 'Tagliare {n} a specchio sulla piega',
+  },
+  nl: {
+    plain: '{n} knippen',
+    fold: '{n} op de vouw knippen',
+    mirrored: '{n} gespiegeld knippen',
+    bias: '{n} op de bias knippen',
+    mirroredFold: '{n} gespiegeld op de vouw knippen',
+  },
+}
+
+/** "Cut 1 on fold", "Cut 2 mirrored", and the plain count, in the locale. */
+export function cutCountPhrase(locale, instruction = {}) {
+  const language = languageOf(locale)
+  const table = CUTS[language] || CUTS.en
+  const count = Number(instruction.cut)
+  const n = Number.isInteger(count) && count > 0 ? count : 1
+  let template = table.plain
+  if (instruction.onFold && n > 1 && !instruction.identical) template = table.mirroredFold
+  else if (instruction.onFold) template = table.fold
+  else if (instruction.onBias) template = table.bias
+  else if (n > 1 && !instruction.identical) template = table.mirrored
+  return template.replaceAll('{n}', String(n))
+}
+
+export function cutWord(locale) {
+  const language = languageOf(locale)
+  return ANNOTATIONS[language]?.cut || ANNOTATIONS.en.cut
+}
+
+/** Cutting lines for every drafted part, including parts titled before addCut. */
+export function cutLinesFromStore(store, locale) {
+  const cutlist = store?.get?.('cutlist') || {}
+  const lines = []
+  for (const [part, entry] of Object.entries(cutlist)) {
+    if (!entry || typeof entry !== 'object') continue
+    const onFoldPart = Array.isArray(entry.cutOnFold)
+    const phrases = []
+    for (const rows of Object.values(entry.materials || {})) {
+      if (!Array.isArray(rows)) continue
+      for (const row of rows) {
+        phrases.push(cutCountPhrase(locale, { ...row, onFold: Boolean(row.onFold) || onFoldPart }))
+      }
+    }
+    if (!phrases.length && onFoldPart) phrases.push(cutCountPhrase(locale, { cut: 1, onFold: true }))
+    if (!phrases.length) continue
+    lines.push({ part, text: [...new Set(phrases)].join(', '), cutWord: cutWord(locale) })
+  }
+  return lines
+}
+
 export function formatMeasurement(locale, name, mm, units, degree = false) {
   const label = measurementLabel(locale, name)
   if (degree) return `${label}: ${Math.round(mm * 10) / 10}°`

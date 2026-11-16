@@ -3,6 +3,7 @@ package app.sewlens.nativebridge;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -10,6 +11,14 @@ import android.graphics.Matrix;
 import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
+import android.os.CancellationSignal;
+import android.os.ParcelFileDescriptor;
+import android.print.PageRange;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintDocumentInfo;
+import android.print.PrintManager;
 import android.provider.MediaStore;
 import android.util.Log;
 
@@ -23,8 +32,10 @@ import org.godotengine.godot.plugin.SignalInfo;
 import org.godotengine.godot.plugin.UsedByGodot;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -42,9 +53,11 @@ public class SewLensNative extends GodotPlugin {
     private static final String TAG = "SewLensNative";
     private static final int REQUEST_CAMERA = 0x5E01;
     private static final int REQUEST_LIBRARY = 0x5E02;
+    private static final int REQUEST_SAVE = 0x5E03;
     private static final int MAX_SIDE = 1600;
 
     private String pendingOutput = "";
+    private String pendingSavePath = "";
     private File cameraFile;
 
     public SewLensNative(Godot godot) {
@@ -70,7 +83,10 @@ public class SewLensNative extends GodotPlugin {
                 "finishPurchase",
                 "requestReview",
                 "pickPhoto",
-                "shareFile");
+                "shareFile",
+                "printPdf",
+                "savePdf",
+                "openPdf");
     }
 
     @Override
@@ -78,6 +94,9 @@ public class SewLensNative extends GodotPlugin {
         Set<SignalInfo> signals = new HashSet<>();
         signals.add(new SignalInfo("photo_finished", String.class, String.class));
         signals.add(new SignalInfo("share_finished", String.class));
+        signals.add(new SignalInfo("print_finished", String.class));
+        signals.add(new SignalInfo("save_finished", String.class));
+        signals.add(new SignalInfo("open_finished", String.class));
         signals.add(new SignalInfo("billing_finished", String.class));
         return signals;
     }
@@ -212,6 +231,10 @@ public class SewLensNative extends GodotPlugin {
 
     @Override
     public void onMainActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_SAVE) {
+            handleSaveResult(resultCode, data);
+            return;
+        }
         if (requestCode != REQUEST_CAMERA && requestCode != REQUEST_LIBRARY) {
             return;
         }
@@ -318,12 +341,161 @@ public class SewLensNative extends GodotPlugin {
                 Intent chooser = Intent.createChooser(send, title);
                 chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 activity.startActivity(chooser);
-                emitShare("ok");
+                emitShare("opened");
             } catch (Exception e) {
                 Log.w(TAG, "Share failed: " + e.getMessage());
                 emitShare("error");
             }
         });
+    }
+
+    @UsedByGodot
+    public void printPdf(String path, String jobName) {
+        Activity activity = getActivity();
+        File file = new File(path);
+        if (activity == null || !file.isFile()) {
+            emitPrint("error");
+            return;
+        }
+        String name = jobName == null || jobName.isEmpty() ? file.getName() : jobName;
+        activity.runOnUiThread(() -> {
+            try {
+                PrintManager manager = (PrintManager) activity.getSystemService(Context.PRINT_SERVICE);
+                if (manager == null) {
+                    emitPrint("error");
+                    return;
+                }
+                manager.print(name, new PdfPassThrough(file, name), new PrintAttributes.Builder().build());
+                emitPrint("started");
+            } catch (Exception e) {
+                Log.w(TAG, "Print failed: " + e.getMessage());
+                emitPrint("error");
+            }
+        });
+    }
+
+    @UsedByGodot
+    public void savePdf(String path, String suggestedName) {
+        Activity activity = getActivity();
+        File file = new File(path);
+        if (activity == null || !file.isFile()) {
+            emitSave("error");
+            return;
+        }
+        pendingSavePath = path;
+        String title = suggestedName == null || suggestedName.isEmpty() ? file.getName() : suggestedName;
+        activity.runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/pdf");
+                intent.putExtra(Intent.EXTRA_TITLE, title);
+                activity.startActivityForResult(intent, REQUEST_SAVE);
+            } catch (Exception e) {
+                Log.w(TAG, "Save failed: " + e.getMessage());
+                emitSave("error");
+            }
+        });
+    }
+
+    @UsedByGodot
+    public void openPdf(String path) {
+        Activity activity = getActivity();
+        File file = new File(path);
+        if (activity == null || !file.isFile()) {
+            emitOpen("error");
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            try {
+                Uri uri = FileProvider.getUriForFile(activity, authority(activity), file);
+                Intent view = new Intent(Intent.ACTION_VIEW);
+                view.setDataAndType(uri, "application/pdf");
+                view.setClipData(ClipData.newRawUri(file.getName(), uri));
+                view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                activity.startActivity(view);
+                emitOpen("ok");
+            } catch (ActivityNotFoundException e) {
+                emitOpen("error");
+            } catch (Exception e) {
+                Log.w(TAG, "Open failed: " + e.getMessage());
+                emitOpen("error");
+            }
+        });
+    }
+
+    private void handleSaveResult(int resultCode, Intent data) {
+        if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
+            emitSave("cancelled");
+            return;
+        }
+        Activity activity = getActivity();
+        Uri destination = data.getData();
+        String source = pendingSavePath;
+        if (activity == null || source == null || source.isEmpty()) {
+            emitSave("error");
+            return;
+        }
+        new Thread(() -> emitSave(copyToUri(activity, destination, source) ? "ok" : "error"), "SewLensSave").start();
+    }
+
+    private boolean copyToUri(Activity activity, Uri uri, String path) {
+        try (InputStream in = new FileInputStream(path); OutputStream out = activity.getContentResolver().openOutputStream(uri)) {
+            if (out == null) {
+                return false;
+            }
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) >= 0) {
+                out.write(buffer, 0, read);
+            }
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "Save copy failed: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Copies the PDF bytes unchanged so the printer keeps the page size. */
+    private static final class PdfPassThrough extends PrintDocumentAdapter {
+        private final File file;
+        private final String name;
+
+        PdfPassThrough(File file, String name) {
+            this.file = file;
+            this.name = name;
+        }
+
+        @Override
+        public void onLayout(PrintAttributes oldAttributes, PrintAttributes newAttributes, CancellationSignal cancellationSignal, LayoutResultCallback callback, Bundle extras) {
+            if (cancellationSignal.isCanceled()) {
+                callback.onLayoutCancelled();
+                return;
+            }
+            PrintDocumentInfo info = new PrintDocumentInfo.Builder(name)
+                    .setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT)
+                    .setPageCount(PrintDocumentInfo.PAGE_COUNT_UNKNOWN)
+                    .build();
+            callback.onLayoutFinished(info, true);
+        }
+
+        @Override
+        public void onWrite(PageRange[] pages, ParcelFileDescriptor destination, CancellationSignal cancellationSignal, WriteResultCallback callback) {
+            try (InputStream in = new FileInputStream(file); OutputStream out = new FileOutputStream(destination.getFileDescriptor())) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = in.read(buffer)) >= 0) {
+                    if (cancellationSignal.isCanceled()) {
+                        callback.onWriteCancelled();
+                        return;
+                    }
+                    out.write(buffer, 0, read);
+                }
+                callback.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});
+            } catch (Exception e) {
+                callback.onWriteFailed(e.getMessage());
+            }
+        }
     }
 
     private void emitPhoto(String status, String path) {
@@ -334,5 +506,20 @@ public class SewLensNative extends GodotPlugin {
     private void emitShare(String status) {
         Log.i(TAG, "share_finished " + status);
         runOnRenderThread(() -> emitSignal("share_finished", status));
+    }
+
+    private void emitPrint(String status) {
+        Log.i(TAG, "print_finished " + status);
+        runOnRenderThread(() -> emitSignal("print_finished", status));
+    }
+
+    private void emitSave(String status) {
+        Log.i(TAG, "save_finished " + status);
+        runOnRenderThread(() -> emitSignal("save_finished", status));
+    }
+
+    private void emitOpen(String status) {
+        Log.i(TAG, "open_finished " + status);
+        runOnRenderThread(() -> emitSignal("open_finished", status));
     }
 }

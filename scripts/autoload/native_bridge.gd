@@ -6,6 +6,9 @@ extends Node
 
 signal photo_finished(status: String, path: String)
 signal share_finished(status: String)
+signal print_finished(status: String)
+signal save_finished(status: String)
+signal open_finished(status: String)
 signal billing_finished(payload: Dictionary)
 
 const REQUEST_FILE := "sewlens_native_request.json"
@@ -29,6 +32,11 @@ var _poll_timer: Timer
 var _ios_action := ""
 ## Tests set this so a simulated StoreKit result can finish the wait. Production leaves it off.
 var hold_billing_for_test := false
+## When set, print, share, save, and open finish at once with this status.
+var export_result_for_test := ""
+## A billing error, a failed draft, or a purchase in this session.
+var review_blocked := false
+var review_requests := 0
 
 
 func _ready() -> void:
@@ -36,6 +44,12 @@ func _ready() -> void:
 		_android = Engine.get_singleton("SewLensNative")
 		_android.connect("photo_finished", _on_android_photo)
 		_android.connect("share_finished", _on_android_share)
+		if _android.has_signal("print_finished"):
+			_android.connect("print_finished", _on_android_print)
+		if _android.has_signal("save_finished"):
+			_android.connect("save_finished", _on_android_save)
+		if _android.has_signal("open_finished"):
+			_android.connect("open_finished", _on_android_open)
 		_ensure_billing_signal()
 	if OS.has_feature("android") or OS.get_name() == "Android":
 		print("SewLens billing plugin %s" % android_billing_plugin())
@@ -76,12 +90,40 @@ func log_event(event_name: String, params: Dictionary) -> void:
 		_append_ios_event(event_name, payload)
 
 
-## The store review sheet. The pattern screen also shows a localized prompt.
+func block_review() -> void:
+	review_blocked = true
+
+
+## The store review sheet, with no in-app card in front of it.
 func request_review() -> void:
+	review_requests += 1
 	if _android and plugin_method_exists(_android, "requestReview"):
 		_android.requestReview()
 	elif OS.has_feature("ios"):
 		_send_ios_request({"action": "review"})
+
+
+## First successful print, share, or save. Errors and cancels do not ask.
+func note_pattern_export(kind: String, status: String) -> void:
+	var success := false
+	if kind == "share":
+		if status == "error":
+			block_review()
+		elif status == "ok" or status == "opened":
+			success = true
+	elif kind == "print":
+		if status == "error" or status == "unavailable":
+			block_review()
+		elif status == "ok" or status == "started":
+			success = true
+	elif kind == "save":
+		if status == "error":
+			block_review()
+		elif status == "ok":
+			success = true
+	if success and not review_blocked and Profile.may_ask_review():
+		Profile.note_review_asked()
+		request_review()
 
 
 ## Debug builds only. Five taps on the version line call this.
@@ -127,22 +169,52 @@ func pick_photo(source: String) -> void:
 		_finish_photo("unavailable", "")
 
 
-## Emits share_finished(status) with ok, cancelled or error.
+## Emits share_finished. Android reports "opened" when the chooser appears, not "ok".
 func share_file(path: String, mime: String, title: String) -> void:
-	if is_busy():
-		return
-	var absolute := ProjectSettings.globalize_path(path)
-	if not FileAccess.file_exists(path):
-		share_finished.emit("error")
-		return
-	_pending_action = "share"
-	if _android and plugin_method_exists(_android, "shareFile"):
-		_android.shareFile(absolute, mime, title)
-	elif OS.has_feature("ios"):
-		_send_ios_request({"action": "share", "path": absolute, "title": title})
-	else:
-		_pending_action = ""
-		share_finished.emit("ok" if OS.shell_open(absolute) == OK else "error")
+	_start_export("share", path, func() -> void:
+		if _android and plugin_method_exists(_android, "shareFile"):
+			_android.shareFile(ProjectSettings.globalize_path(path), mime, title)
+		elif OS.has_feature("ios"):
+			_send_ios_request({"action": "share", "path": ProjectSettings.globalize_path(path), "title": title})
+		else:
+			var opened := OS.shell_open(ProjectSettings.globalize_path(path))
+			_finish_export("share", "ok" if opened == OK else "error")
+	)
+
+
+## iOS completes with ok, cancelled, or error. Android reports started when the job is queued.
+func print_file(path: String, title: String) -> void:
+	_start_export("print", path, func() -> void:
+		if _android and plugin_method_exists(_android, "printPdf"):
+			_android.printPdf(ProjectSettings.globalize_path(path), title)
+		elif OS.has_feature("ios"):
+			_send_ios_request({"action": "print", "path": ProjectSettings.globalize_path(path), "title": title})
+		else:
+			_finish_export("print", "unavailable")
+	)
+
+
+## Android Save As. ok, cancelled, or error.
+func save_file(path: String, suggested_name: String) -> void:
+	_start_export("save", path, func() -> void:
+		if _android and plugin_method_exists(_android, "savePdf"):
+			_android.savePdf(ProjectSettings.globalize_path(path), suggested_name)
+		else:
+			_finish_export("save", "unavailable")
+	)
+
+
+## System preview of a PDF that is already on the phone.
+func open_file(path: String) -> void:
+	_start_export("open", path, func() -> void:
+		var absolute := ProjectSettings.globalize_path(path)
+		if _android and plugin_method_exists(_android, "openPdf"):
+			_android.openPdf(absolute)
+		elif OS.has_feature("ios"):
+			_send_ios_request({"action": "open", "path": absolute})
+		else:
+			_finish_export("open", "ok" if OS.shell_open(absolute) == OK else "error")
+	)
 
 
 func open_url(url: String) -> void:
@@ -321,8 +393,48 @@ func _on_android_photo(status: String, _absolute_path: String) -> void:
 
 
 func _on_android_share(status: String) -> void:
-	_pending_action = ""
-	share_finished.emit(status)
+	_finish_export("share", status)
+
+
+func _on_android_print(status: String) -> void:
+	_finish_export("print", status)
+
+
+func _on_android_save(status: String) -> void:
+	_finish_export("save", status)
+
+
+func _on_android_open(status: String) -> void:
+	_finish_export("open", status)
+
+
+func _start_export(action: String, path: String, native: Callable) -> void:
+	if is_busy():
+		return
+	_pending_action = action
+	if not FileAccess.file_exists(path):
+		_finish_export(action, "error")
+		return
+	if export_result_for_test != "":
+		_finish_export(action, export_result_for_test)
+		return
+	native.call()
+
+
+func _finish_export(action: String, status: String) -> void:
+	if _pending_action == action:
+		_pending_action = ""
+	if action == "share" or action == "print" or action == "save":
+		note_pattern_export(action, status)
+	match action:
+		"print":
+			print_finished.emit(status)
+		"save":
+			save_finished.emit(status)
+		"open":
+			open_finished.emit(status)
+		_:
+			share_finished.emit(status)
 
 
 func _desktop_pick_photo() -> void:
@@ -418,9 +530,13 @@ func _poll_ios_result() -> void:
 	elif _pending_action == "billing":
 		billing_trace = parsed
 		_finish_billing(parsed)
-	else:
+	elif _ios_action == "review":
+		_poll_timer.stop()
 		_pending_action = ""
-		share_finished.emit(status)
+	else:
+		_poll_timer.stop()
+		var action := _pending_action if _pending_action != "" else "share"
+		_finish_export(action, status)
 
 
 func _fail_ios_request() -> void:
@@ -454,6 +570,8 @@ func _fail_ios_request() -> void:
 				payload["responseCode"] = "timeout"
 		print("SewLens billing ios %s" % JSON.stringify(payload))
 		_finish_billing(payload)
-	else:
+	elif _ios_action == "review":
 		_pending_action = ""
-		share_finished.emit("error")
+	else:
+		var action := _pending_action if _pending_action != "" else "share"
+		_finish_export(action, "error")

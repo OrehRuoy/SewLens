@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
 #import <StoreKit/StoreKit.h>
+#import <QuickLook/QuickLook.h>
 
 // GDScript (scripts/autoload/native_bridge.gd) writes sewlens_native_request.json
 // into the Godot user folder. This file polls for it, shows the share sheet or
@@ -140,8 +141,12 @@ static void sln_present_share(NSDictionary *request) {
 	}
 	NSURL *url = [NSURL fileURLWithPath:path];
 	UIActivityViewController *avc = [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil];
-	avc.completionWithItemsHandler = ^(__unused UIActivityType type, BOOL completed, __unused NSArray *returned, __unused NSError *error) {
-		sln_finish(request, completed ? @"ok" : @"cancelled", @"");
+	avc.completionWithItemsHandler = ^(__unused UIActivityType type, BOOL completed, __unused NSArray *returned, NSError *error) {
+		if (error != nil) {
+			sln_finish(request, @"error", @"");
+		} else {
+			sln_finish(request, completed ? @"ok" : @"cancelled", @"");
+		}
 	};
 	sln_anchor_popover(avc.popoverPresentationController, root);
 	[root presentViewController:avc animated:YES completion:nil];
@@ -168,6 +173,139 @@ static void sln_present_photo(NSDictionary *request) {
 		sln_anchor_popover(picker.popoverPresentationController, root);
 	}
 	[root presentViewController:picker animated:YES completion:nil];
+}
+
+@interface SLNPrintRenderer : UIPrintPageRenderer
+@property (nonatomic, assign) CGPDFDocumentRef document;
+@end
+
+@implementation SLNPrintRenderer
+- (NSInteger)numberOfPages {
+	return self.document == NULL ? 0 : (NSInteger)CGPDFDocumentGetNumberOfPages(self.document);
+}
+
+- (CGRect)paperRect {
+	CGPDFPageRef page = self.document == NULL ? NULL : CGPDFDocumentGetPage(self.document, 1);
+	if (page == NULL) {
+		return [super paperRect];
+	}
+	return CGPDFPageGetBoxRect(page, kCGPDFMediaBox);
+}
+
+- (CGRect)printableRect {
+	return self.paperRect;
+}
+
+- (void)drawPageAtIndex:(NSInteger)pageIndex inRect:(CGRect)printableRect {
+	CGPDFPageRef page = CGPDFDocumentGetPage(self.document, pageIndex + 1);
+	if (page == NULL) {
+		return;
+	}
+	CGRect media = CGPDFPageGetBoxRect(page, kCGPDFMediaBox);
+	CGContextRef ctx = UIGraphicsGetCurrentContext();
+	CGContextSaveGState(ctx);
+	CGContextTranslateCTM(ctx, printableRect.origin.x, printableRect.origin.y + media.size.height);
+	CGContextScaleCTM(ctx, 1.0, -1.0);
+	CGContextDrawPDFPage(ctx, page);
+	CGContextRestoreGState(ctx);
+}
+@end
+
+static CGPDFDocumentRef sPrintDocument = NULL;
+static SLNPrintRenderer *sPrintRenderer = nil;
+
+static void sln_release_print(void) {
+	sPrintRenderer = nil;
+	if (sPrintDocument != NULL) {
+		CGPDFDocumentRelease(sPrintDocument);
+		sPrintDocument = NULL;
+	}
+}
+
+static void sln_present_print(NSDictionary *request) {
+	UIViewController *root = sln_root_vc();
+	NSString *path = sln_string(request, @"path");
+	if (root == nil || ![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+		sln_finish(request, @"error", @"");
+		return;
+	}
+	sln_release_print();
+	sPrintDocument = CGPDFDocumentCreateWithURL((__bridge CFURLRef)[NSURL fileURLWithPath:path]);
+	if (sPrintDocument == NULL || CGPDFDocumentGetNumberOfPages(sPrintDocument) < 1) {
+		sln_release_print();
+		sln_finish(request, @"error", @"");
+		return;
+	}
+	sPrintRenderer = [[SLNPrintRenderer alloc] init];
+	sPrintRenderer.document = sPrintDocument;
+	UIPrintInteractionController *controller = [UIPrintInteractionController sharedPrintController];
+	UIPrintInfo *info = [UIPrintInfo printInfo];
+	info.outputType = UIPrintInfoOutputGeneral;
+	NSString *title = sln_string(request, @"title");
+	info.jobName = title.length > 0 ? title : path.lastPathComponent;
+	controller.printInfo = info;
+	controller.printingItem = nil;
+	controller.printPageRenderer = sPrintRenderer;
+	void (^done)(UIPrintInteractionController *, BOOL, NSError *) = ^(UIPrintInteractionController *pic, BOOL completed, NSError *error) {
+		(void)pic;
+		sln_release_print();
+		if (error != nil) {
+			sln_finish(request, @"error", @"");
+		} else if (completed) {
+			sln_finish(request, @"ok", @"");
+		} else {
+			sln_finish(request, @"cancelled", @"");
+		}
+	};
+	if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+		CGRect anchor = CGRectMake(CGRectGetMidX(root.view.bounds), CGRectGetMidY(root.view.bounds), 1.0, 1.0);
+		[controller presentFromRect:anchor inView:root.view animated:YES completionHandler:done];
+	} else {
+		[controller presentAnimated:YES completionHandler:done];
+	}
+}
+
+@interface SLNPreview : NSObject <QLPreviewControllerDataSource, QLPreviewControllerDelegate>
+@property (nonatomic, copy) NSURL *url;
+@property (nonatomic, copy) NSDictionary *request;
+@end
+
+static SLNPreview *sPreview = nil;
+
+@implementation SLNPreview
+- (NSInteger)numberOfPreviewItemsInPreviewController:(QLPreviewController *)controller {
+	(void)controller;
+	return 1;
+}
+
+- (id<QLPreviewItem>)previewController:(QLPreviewController *)controller previewItemAtIndex:(NSInteger)index {
+	(void)controller;
+	(void)index;
+	return self.url;
+}
+
+- (void)previewControllerDidDismiss:(QLPreviewController *)controller {
+	(void)controller;
+	NSDictionary *request = self.request;
+	sPreview = nil;
+	sln_finish(request, @"ok", @"");
+}
+@end
+
+static void sln_present_open(NSDictionary *request) {
+	UIViewController *root = sln_root_vc();
+	NSString *path = sln_string(request, @"path");
+	if (root == nil || ![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+		sln_finish(request, @"error", @"");
+		return;
+	}
+	sPreview = [[SLNPreview alloc] init];
+	sPreview.url = [NSURL fileURLWithPath:path];
+	sPreview.request = request;
+	QLPreviewController *preview = [[QLPreviewController alloc] init];
+	preview.dataSource = sPreview;
+	preview.delegate = sPreview;
+	[root presentViewController:preview animated:YES completion:nil];
 }
 
 static void sln_walk(NSString *dir, int depth, NSMutableArray<NSString *> *out) {
@@ -238,6 +376,10 @@ static void sln_poll(void) {
 	sBusy = YES;
 	if ([action isEqualToString:@"share"]) {
 		sln_present_share(request);
+	} else if ([action isEqualToString:@"print"]) {
+		sln_present_print(request);
+	} else if ([action isEqualToString:@"open"]) {
+		sln_present_open(request);
 	} else if ([action isEqualToString:@"photo"]) {
 		sln_present_photo(request);
 	} else if ([action isEqualToString:@"review"]) {

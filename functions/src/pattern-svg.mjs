@@ -5,8 +5,10 @@
  * logos, and the FreeSewing title block.
  */
 
+import { flattenPath } from './geometry.mjs'
+
 const OUTLINE_CSS = `
-.hidden, .note, .logo, .help, .scalebox {
+.hidden, .note:not(.sewlens-mark), .logo, .help:not(.sewlens-mark), .scalebox {
   display: none !important;
   stroke: none !important;
   fill: none !important;
@@ -55,6 +57,10 @@ function paintAttrs(tag, attrs) {
   if (hideElement(attrs)) {
     next = next.replace(/\s(?:fill|stroke|stroke-width|style)="[^"]*"/g, '')
     return `${next} fill="none" stroke="none" style="display:none"`
+  }
+  if (classes.includes('sewlens-mark')) {
+    next = next.replace(/\sstyle="[^"]*"/g, '')
+    next += ' style="display:inline"'
   }
   if (tag === 'use') return next
   const filledMark = classes.some((name) => name === 'fill-mark' || name === 'fill-contrast')
@@ -112,6 +118,16 @@ function withClass(attrs, name) {
   if (classList(attrs).includes(name)) return attrs
   if (/class="/.test(attrs)) return attrs.replace(/class="([^"]*)"/, `class="$1 ${name}"`)
   return `${attrs} class="${name}"`
+}
+
+/** Drop note/help so a viewer that ignores :not() still strokes the mark. */
+function markAttrs(attrs) {
+  const classes = classList(attrs).filter((name) => name !== 'note' && name !== 'help' && name !== 'hidden')
+  if (!classes.includes('sewlens-mark')) classes.push('sewlens-mark')
+  const painted = /class="/.test(attrs)
+    ? attrs.replace(/class="[^"]*"/, `class="${classes.join(' ')}"`)
+    : `${attrs} class="${classes.join(' ')}"`
+  return painted
 }
 
 function arrowHead(x, y, angle) {
@@ -192,11 +208,14 @@ function keepSewerMarks(svg) {
       || (classes.includes('note') && classes.includes('help'))
     )
     if (!marked) return full
-    let painted = withClass(attrs, 'sewlens-mark')
+    const foldLine = classes.includes('note') && classes.includes('help')
+      && !/grainline|cutonfold/i.test(`${markers.start}${markers.end}`)
+    let painted = markAttrs(attrs)
     const label = labels.get(attr(attrs, 'id')) || labelByD.get(markD(attr(attrs, 'd'))) || ''
     if (label && !/data-sewlens-label=/.test(painted)) {
       painted += ` data-sewlens-label="${label.replace(/"/g, '')}"`
     }
+    if (foldLine) painted += ' data-sewlens-fold="1"'
     const arrows = arrowPath(attr(attrs, 'd'), markers)
     const head = arrows
       ? `<path class="sewlens-mark" d="${arrows}"/>`
@@ -216,10 +235,167 @@ function keepSewerMarks(svg) {
   return next
 }
 
+function round(value) {
+  return Math.round(value * 100) / 100
+}
+
+function groupBounds(svg, idIndex) {
+  const open = svg.lastIndexOf('<g', idIndex)
+  if (open < 0) return null
+  const tags = /<\/?g\b[^>]*>/g
+  tags.lastIndex = open
+  let depth = 0
+  let match = tags.exec(svg)
+  while (match) {
+    if (match[0].startsWith('</')) {
+      depth -= 1
+      if (depth === 0) return { open, close: match.index }
+    } else depth += 1
+    match = tags.exec(svg)
+  }
+  return null
+}
+
+function partIdAt(svg, part) {
+  const names = [part, String(part).split('.').pop()].filter(Boolean)
+  for (const name of names) {
+    const token = `id="fs-stack-${name}-part-${name}"`
+    const at = svg.indexOf(token)
+    if (at >= 0) return at
+  }
+  return -1
+}
+
+function boxOf(inner, className) {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  let count = 0
+  const pattern = className
+    ? new RegExp(`<path\\b([^>]*class="[^"]*\\b${className}\\b[^"]*"[^>]*)\\/>`, 'g')
+    : /<path\b([^>]*)\/>/g
+  for (const match of inner.matchAll(pattern)) {
+    const geometry = flattenPath(attr(match[1], 'd'))
+    for (const point of geometry.points) {
+      count += 1
+      minX = Math.min(minX, point.x)
+      minY = Math.min(minY, point.y)
+      maxX = Math.max(maxX, point.x)
+      maxY = Math.max(maxY, point.y)
+    }
+  }
+  if (!count) return null
+  return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY }
+}
+
+function hasLongMark(inner) {
+  for (const match of inner.matchAll(/<path\b([^>]*\bsewlens-mark\b[^>]*)\/>/g)) {
+    const geometry = flattenPath(attr(match[1], 'd'))
+    if (geometry.segments.some((segment) => segment.length > 12)) return true
+  }
+  return false
+}
+
+/** One "Fold here" per fold line, offset from the line and from the piece number. */
+function singleFoldLabels(svg) {
+  const phrases = new Set()
+  for (const match of svg.matchAll(/<path\b([^>]*data-sewlens-fold="1"[^>]*)\/>/g)) {
+    const label = attr(match[1], 'data-sewlens-label')
+    if (label) phrases.add(label)
+  }
+  if (!phrases.size) return svg
+  let next = svg.replace(/<text\b[^>]*>[\s\S]*?<\/text>/g, (block) => {
+    if (!/<textPath\b/.test(block)) return block
+    const text = collapseRepeats(textOf(block))
+    return phrases.has(text) ? '' : block
+  })
+  next = next.replace(/<path\b([^>]*data-sewlens-fold="1"[^>]*)\/>/g, (full, attrs) => {
+    const label = attr(attrs, 'data-sewlens-label')
+    const points = linePoints(attr(attrs, 'd'))
+    if (!label || points.length < 2) return full
+    const start = points[0]
+    const end = points[points.length - 1]
+    const along = 0.78
+    const x = start.x + (end.x - start.x) * along
+    const y = start.y + (end.y - start.y) * along
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    const length = Math.hypot(dx, dy) || 1
+    const ox = (-dy / length) * 7
+    const oy = (dx / length) * 7
+    const text = `<text class="sewlens-fold-label" font-size="8"><tspan x="${round(x + ox)}" y="${round(y + oy)}">${label}</tspan></text>`
+    return `${full}${text}`
+  })
+  return next
+}
+
+function escapeText(value) {
+  return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** A cut-count line on every piece whose title was drawn before the cutlist. */
+function addCutCounts(svg, lines) {
+  let next = svg
+  for (const line of lines) {
+    const idIndex = partIdAt(next, line.part)
+    if (idIndex < 0 || !line.text) continue
+    const bounds = groupBounds(next, idIndex)
+    if (!bounds) continue
+    const inner = next.slice(bounds.open, bounds.close)
+    if (inner.includes(line.text) || inner.includes('data-sewlens-cut=')) continue
+    if (partHasCutCount(inner, line.cutWord)) continue
+    const box = boxOf(inner, 'fabric') || boxOf(inner, '')
+    const x = box ? box.minX + Math.min(8, box.width * 0.12) : 4
+    const y = box ? box.minY + box.height * 0.42 : 20
+    const text = `<text class="sewlens-cut" data-sewlens-cut="1" font-size="8"><tspan x="${round(x)}" y="${round(y)}">${escapeText(line.text)}</tspan></text>`
+    next = `${next.slice(0, bounds.close)}${text}${next.slice(bounds.close)}`
+  }
+  return next
+}
+
+function partHasCutCount(inner, cutWord) {
+  if (!cutWord) return false
+  const plain = textOf(inner)
+  const word = cutWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`${word}\\s*\\d|\\d\\s*${word}`, 'i').test(plain)
+}
+
+/** A piece with neither a grainline nor a fold line gets a grainline through its fabric. */
+function ensureGrainOrFold(svg, grainlineLabel) {
+  const ids = [...svg.matchAll(/id="(fs-stack-(.+?)-part-\2)"/g)]
+  let next = svg
+  for (const match of ids) {
+    const idIndex = next.indexOf(`id="${match[1]}"`)
+    if (idIndex < 0) continue
+    const bounds = groupBounds(next, idIndex)
+    if (!bounds) continue
+    const inner = next.slice(bounds.open, bounds.close)
+    if (hasLongMark(inner)) continue
+    const box = boxOf(inner, 'fabric') || boxOf(inner, '')
+    if (!box || box.width < 8 || box.height < 8) continue
+    const vertical = box.height >= box.width
+    const inset = 0.18
+    const x1 = vertical ? (box.minX + box.maxX) / 2 : box.minX + box.width * inset
+    const x2 = vertical ? x1 : box.maxX - box.width * inset
+    const y1 = vertical ? box.minY + box.height * inset : (box.minY + box.maxY) / 2
+    const y2 = vertical ? box.maxY - box.height * inset : y1
+    const label = grainlineLabel || 'Grainline'
+    const path = `<path class="sewlens-mark" data-sewlens-label="${escapeText(label)}" d="M ${round(x1)} ${round(y1)} L ${round(x2)} ${round(y2)}"/>`
+    const arrows = arrowPath(`M ${x1} ${y1} L ${x2} ${y2}`, { start: '', end: 'grainline' })
+    const head = arrows ? `<path class="sewlens-mark" d="${arrows}"/>` : ''
+    next = `${next.slice(0, bounds.close)}${path}${head}${next.slice(bounds.close)}`
+  }
+  return next
+}
+
 /** Outline styling, sewing marks, and no FreeSewing title or patron block. */
-export function stylePatternSvg(svg) {
+export function stylePatternSvg(svg, extras = {}) {
   let next = stripCustomerNoise(String(svg))
   next = keepSewerMarks(next)
+  next = singleFoldLabels(next)
+  next = addCutCounts(next, extras.cutLines || [])
+  next = ensureGrainOrFold(next, extras.grainlineLabel)
   if (next.includes(']]>')) next = next.replace(']]>', `${OUTLINE_CSS}]]>`)
   else {
     next = next.replace(

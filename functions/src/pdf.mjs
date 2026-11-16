@@ -58,11 +58,8 @@ export async function renderPatternPdf({
   const pageWidth = size.width * PT_PER_MM
   const pageHeight = size.height * PT_PER_MM
   const placed = layoutPieces(pieces, paper)
-  const { contentW, contentH, rows, cols } = placed
-  const grid = []
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) grid.push({ row, col, id: `${String.fromCharCode(65 + row)}${col + 1}` })
-  }
+  const grid = patternCells(placed)
+  const printed = grid.filter((cell) => !cell.blank)
 
   drawCalibrationPage(doc.addPage([pageWidth, pageHeight]), {
     font,
@@ -75,28 +72,28 @@ export async function renderPatternPdf({
     pageHeight,
   })
 
-  for (const cell of grid) {
+  printed.forEach((cell, index) => {
     const page = doc.addPage([pageWidth, pageHeight])
     drawPatternPage(page, {
       font,
       locale,
       pieces: placed.pieces,
       cell,
-      contentW,
-      contentH,
+      contentW: placed.contentW,
+      contentH: placed.contentH,
       pageWidth,
       pageHeight,
       labels,
-      gridSize: grid.length,
-      index: grid.indexOf(cell) + 1,
+      gridSize: printed.length,
+      index: index + 1,
     })
-  }
+  })
 
   drawAssemblyPage(doc.addPage([pageWidth, pageHeight]), {
     font,
     labels,
     grid,
-    cols,
+    cols: placed.cols,
     pageWidth,
     pageHeight,
   })
@@ -178,38 +175,55 @@ function drawCalibrationPage(page, context) {
   }
 }
 
+function patternCells(placed) {
+  const cells = []
+  for (let row = 0; row < placed.rows; row += 1) {
+    for (let col = 0; col < placed.cols; col += 1) {
+      const cell = { row, col, id: `${String.fromCharCode(65 + row)}${col + 1}` }
+      cell.blank = !cellHasContent(placed.pieces, cell, placed.contentW, placed.contentH)
+      cells.push(cell)
+    }
+  }
+  return cells
+}
+
+/** Full grid, including blank cells that are left off the printed sheets. */
+export function patternGrid(pieces, paper) {
+  const placed = layoutPieces(pieces, paper)
+  const cells = patternCells(placed)
+  return { ...placed, cells, printed: cells.filter((cell) => !cell.blank) }
+}
+
 function drawPatternPage(page, context) {
   const { font, locale, pieces, cell, contentW, contentH, pageHeight, labels, gridSize, index } = context
-  const originX = MARGIN_MM
-  const originTop = MARGIN_MM
   const windowX = cell.col * contentW
   const windowY = cell.row * contentH
-  const clipX = originX * PT_PER_MM
-  const clipY = (pageHeight / PT_PER_MM - originTop - contentH) * PT_PER_MM
+  const clipX = MARGIN_MM * PT_PER_MM
+  const clipY = (pageHeight / PT_PER_MM - MARGIN_MM - contentH) * PT_PER_MM
   page.pushOperators(pushGraphicsState(), rectangle(clipX, clipY, contentW * PT_PER_MM, contentH * PT_PER_MM), clip(), endPath())
   for (const piece of pieces) {
-    const originX = (originXmm(piece.placeX, windowX) - piece.minX) * PT_PER_MM
-    const originY = pageHeight - (originYmm(piece.placeY, windowY) - piece.minY) * PT_PER_MM
+    if (!pieceHitsCell(piece, windowX, windowY, contentW, contentH)) continue
+    const pathOriginX = (originXmm(piece.placeX, windowX) - piece.minX) * PT_PER_MM
+    const pathOriginY = pageHeight - (originYmm(piece.placeY, windowY) - piece.minY) * PT_PER_MM
     for (const path of piece.paths) {
       page.drawSvgPath(path.d, {
-        x: originX,
-        y: originY,
+        x: pathOriginX,
+        y: pathOriginY,
         scale: PT_PER_MM,
         borderColor: BLACK,
         borderWidth: 0.6,
       })
     }
-    const labelPoint = toPage(piece.placeX, piece.placeY, windowX, windowY, pageHeight)
-    drawInsetText(page, pieceLabel(locale, piece.name), labelPoint, {
-      font, size: 8, clipX, clipY, contentW, contentH,
-    })
-    for (const path of piece.paths) {
-      if (!path.label) continue
-      const spot = pointOnPage(piece, path, windowX, windowY, contentW, contentH, pageHeight)
-      if (spot) {
-        drawInsetText(page, path.label, spot, { font, size: 7, clipX, clipY, contentW, contentH })
-      }
-    }
+  }
+  const bounds = {
+    x: clipX + 3,
+    y: clipY + 3,
+    w: contentW * PT_PER_MM - 6,
+    h: contentH * PT_PER_MM - 6,
+  }
+  const layout = layoutPageLabels(font, locale, pieces, cell, contentW, contentH, pageHeight, bounds)
+  for (const box of layout.boxes) {
+    page.drawText(box.text, { x: box.x, y: box.y, size: box.size, font, color: BLACK })
   }
   page.pushOperators(popGraphicsState())
   page.drawText(`${cell.id}  ${labels.page} ${index} ${labels.of} ${gridSize}`, {
@@ -219,6 +233,34 @@ function drawPatternPage(page, context) {
     font,
     color: BLACK,
   })
+}
+
+/** Overlapping or clipped label boxes, used by the export tests. */
+export async function labelIssues(pieces, paper, locale = 'en') {
+  const size = PAPER_MM[paper]
+  const doc = await PDFDocument.create()
+  doc.registerFontkit(fontkit)
+  const fontBytes = readFileSync(
+    join(fontDirectory, locale === 'ja' ? 'KosugiMaru-Regular.woff' : 'NotoSans-Regular.ttf')
+  )
+  const font = await doc.embedFont(fontBytes, { subset: true })
+  const placed = layoutPieces(pieces, paper)
+  const pageHeight = size.height * PT_PER_MM
+  const issues = []
+  for (const cell of patternCells(placed)) {
+    if (cell.blank) continue
+    const clipX = MARGIN_MM * PT_PER_MM
+    const clipY = (pageHeight / PT_PER_MM - MARGIN_MM - placed.contentH) * PT_PER_MM
+    const bounds = {
+      x: clipX + 3,
+      y: clipY + 3,
+      w: placed.contentW * PT_PER_MM - 6,
+      h: placed.contentH * PT_PER_MM - 6,
+    }
+    const layout = layoutPageLabels(font, locale, placed.pieces, cell, placed.contentW, placed.contentH, pageHeight, bounds)
+    for (const issue of layout.issues) issues.push(`${cell.id} ${issue}`)
+  }
+  return issues
 }
 
 function drawAssemblyPage(page, context) {
@@ -249,30 +291,186 @@ function drawAssemblyPage(page, context) {
   void pageWidth
 }
 
-function drawInsetText(page, text, point, box) {
-  const { font, size, clipX, clipY, contentW, contentH } = box
-  const right = clipX + contentW * PT_PER_MM
-  const top = clipY + contentH * PT_PER_MM
-  if (point.x < clipX - 2 || point.x > right + 2 || point.y < clipY - 2 || point.y > top + 2) return
-  page.drawText(text, {
-    x: Math.min(Math.max(point.x, clipX + 2), right - 4),
-    y: Math.min(Math.max(point.y, clipY + 2), top - size - 3),
-    size,
-    font,
-    color: BLACK,
-  })
+function pieceHitsCell(piece, windowX, windowY, contentW, contentH) {
+  return piece.placeX < windowX + contentW && piece.placeX + piece.width > windowX
+    && piece.placeY < windowY + contentH && piece.placeY + piece.height > windowY
 }
 
-function pointOnPage(piece, path, windowX, windowY, contentW, contentH, pageHeight) {
-  const points = path.geometry?.points || []
-  for (const point of points) {
-    const canvasX = piece.placeX + (point.x - piece.minX)
-    const canvasY = piece.placeY + (point.y - piece.minY)
-    if (canvasX < windowX - 0.5 || canvasX >= windowX + contentW + 0.5) continue
-    if (canvasY < windowY - 0.5 || canvasY >= windowY + contentH + 0.5) continue
-    return toPage(canvasX, canvasY, windowX, windowY, pageHeight)
+function cellHasContent(pieces, cell, contentW, contentH) {
+  const windowX = cell.col * contentW
+  const windowY = cell.row * contentH
+  const right = windowX + contentW
+  const bottom = windowY + contentH
+  for (const piece of pieces) {
+    for (const path of piece.paths) {
+      for (const segment of path.geometry?.segments || []) {
+        const x1 = piece.placeX + (segment.x1 - piece.minX)
+        const y1 = piece.placeY + (segment.y1 - piece.minY)
+        const x2 = piece.placeX + (segment.x2 - piece.minX)
+        const y2 = piece.placeY + (segment.y2 - piece.minY)
+        if (segment.length < 0.4) continue
+        if (segmentHitsRect(x1, y1, x2, y2, windowX, windowY, right, bottom)) return true
+      }
+    }
   }
-  return null
+  return false
+}
+
+function segmentHitsRect(x1, y1, x2, y2, left, top, right, bottom) {
+  const inside = (x, y) => x >= left && x <= right && y >= top && y <= bottom
+  if (inside(x1, y1) || inside(x2, y2)) return true
+  const edges = [
+    [left, top, right, top],
+    [right, top, right, bottom],
+    [right, bottom, left, bottom],
+    [left, bottom, left, top],
+  ]
+  return edges.some(([ax, ay, bx, by]) => segmentsCross(x1, y1, x2, y2, ax, ay, bx, by))
+}
+
+function segmentsCross(ax, ay, bx, by, cx, cy, dx, dy) {
+  const abx = bx - ax
+  const aby = by - ay
+  const cdx = dx - cx
+  const cdy = dy - cy
+  const denom = abx * cdy - aby * cdx
+  if (Math.abs(denom) < 1e-9) return false
+  const t = ((cx - ax) * cdy - (cy - ay) * cdx) / denom
+  const u = ((cx - ax) * aby - (cy - ay) * abx) / denom
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1
+}
+
+function layoutPageLabels(font, locale, pieces, cell, contentW, contentH, pageHeight, bounds) {
+  const windowX = cell.col * contentW
+  const windowY = cell.row * contentH
+  const planned = []
+  const marks = []
+  for (const piece of pieces) {
+    if (!pieceHitsCell(piece, windowX, windowY, contentW, contentH)) continue
+    for (const path of piece.paths) {
+      if (!String(path.className || '').includes('sewlens-mark')) continue
+      for (const segment of path.geometry?.segments || []) {
+        const start = canvasPoint(piece, segment.x1, segment.y1)
+        const end = canvasPoint(piece, segment.x2, segment.y2)
+        if (!segmentHitsRect(start.x, start.y, end.x, end.y, windowX, windowY, windowX + contentW, windowY + contentH)) continue
+        const a = toPage(start.x, start.y, windowX, windowY, pageHeight)
+        const b = toPage(end.x, end.y, windowX, windowY, pageHeight)
+        marks.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y })
+      }
+    }
+    const spot = nameSpot(piece, windowX, windowY, contentW, contentH)
+    planned.push({
+      text: pieceLabel(locale, piece.name),
+      size: 8,
+      ...toPage(spot.x, spot.y, windowX, windowY, pageHeight),
+    })
+    for (const path of piece.paths) {
+      if (!path.label) continue
+      const anchor = labelAnchor(piece, path, windowX, windowY, contentW, contentH, pageHeight)
+      if (anchor) planned.push({ text: path.label, size: 7, ...anchor })
+    }
+  }
+  return placeLabels(font, planned, marks, bounds)
+}
+
+function canvasPoint(piece, x, y) {
+  return {
+    x: piece.placeX + (x - piece.minX),
+    y: piece.placeY + (y - piece.minY),
+  }
+}
+
+function nameSpot(piece, windowX, windowY, contentW, contentH) {
+  const left = Math.max(piece.placeX, windowX)
+  const top = Math.max(piece.placeY, windowY)
+  const right = Math.min(piece.placeX + piece.width, windowX + contentW)
+  const bottom = Math.min(piece.placeY + piece.height, windowY + contentH)
+  return {
+    x: left + Math.min(8, Math.max(2, (right - left) * 0.12)),
+    y: top + Math.min(12, Math.max(4, (bottom - top) * 0.16)),
+  }
+}
+
+function labelAnchor(piece, path, windowX, windowY, contentW, contentH, pageHeight) {
+  let best = null
+  for (const segment of path.geometry?.segments || []) {
+    if (segment.length < 8) continue
+    const start = canvasPoint(piece, segment.x1, segment.y1)
+    const end = canvasPoint(piece, segment.x2, segment.y2)
+    if (!segmentHitsRect(start.x, start.y, end.x, end.y, windowX, windowY, windowX + contentW, windowY + contentH)) continue
+    if (!best || segment.length > best.length) best = { ...segment, start, end }
+  }
+  if (!best) return null
+  const along = 0.72
+  const x = best.start.x + (best.end.x - best.start.x) * along
+  const y = best.start.y + (best.end.y - best.start.y) * along
+  const dx = best.end.x - best.start.x
+  const dy = best.end.y - best.start.y
+  const length = Math.hypot(dx, dy) || 1
+  return toPage(x + (-dy / length) * 6, y + (dx / length) * 6, windowX, windowY, pageHeight)
+}
+
+function textBox(font, text, x, y, size) {
+  return { text, x, y, w: font.widthOfTextAtSize(text, size), h: size + 1.5, size }
+}
+
+function boxesOverlap(a, b, pad = 1.25) {
+  return a.x < b.x + b.w + pad && a.x + a.w + pad > b.x && a.y < b.y + b.h + pad && a.y + a.h + pad > b.y
+}
+
+function boxHitsSegment(box, segment, pad = 2) {
+  return segmentHitsRect(
+    segment.x1,
+    segment.y1,
+    segment.x2,
+    segment.y2,
+    box.x - pad,
+    box.y - pad,
+    box.x + box.w + pad,
+    box.y + box.h + pad,
+  )
+}
+
+function placeLabels(font, planned, marks, bounds) {
+  const boxes = []
+  const issues = []
+  for (const item of planned) {
+    const shifts = []
+    for (const dy of [0, 12, -12, 24, -24, 36, -36, 48, 60]) {
+      for (const dx of [0, 16, -16, 32, -32, 48, -48, 64]) shifts.push([dx, dy])
+    }
+    let chosen = null
+    const fits = (box) => box.x >= bounds.x
+      && box.y >= bounds.y
+      && box.x + box.w <= bounds.x + bounds.w
+      && box.y + box.h <= bounds.y + bounds.h
+      && !boxes.some((other) => boxesOverlap(box, other))
+      && !marks.some((segment) => boxHitsSegment(box, segment))
+    for (const [dx, dy] of shifts) {
+      const box = textBox(font, item.text, item.x + dx, item.y + dy, item.size)
+      if (fits(box)) {
+        chosen = box
+        break
+      }
+    }
+    if (!chosen) {
+      const step = 9
+      search: for (let y = bounds.y; y + item.size + 2 <= bounds.y + bounds.h; y += step) {
+        for (let x = bounds.x; x + 12 <= bounds.x + bounds.w; x += step) {
+          const box = textBox(font, item.text, x, y, item.size)
+          if (!fits(box)) continue
+          chosen = box
+          break search
+        }
+      }
+    }
+    if (!chosen) {
+      issues.push(`no clear spot for “${item.text}”`)
+      continue
+    }
+    boxes.push(chosen)
+  }
+  return { boxes, issues }
 }
 
 function originXmm(placeX, windowX) {

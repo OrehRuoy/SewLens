@@ -100,6 +100,7 @@ func _start() -> void:
 	_busy = false
 	_status.visible = false
 	if not result.get("ok", false):
+		NativeBridge.block_review()
 		var limited := str(result.get("error", "")) == "limit"
 		show_error(_error, "" if limited else API_ERRORS.get(str(result.get("error", "")), "err_api_server"))
 		_retry.visible = not limited
@@ -115,28 +116,8 @@ func _start() -> void:
 	session().erase("complaint")
 	session().erase("fit_adjustment")
 	_show_result(result)
-	if not was_adjustment and Profile.note_successful_pattern() == 2:
-		_show_review()
-
-
-func _show_review() -> void:
-	var card := UI.card()
-	card.name = "ReviewCard"
-	card.add_child(UI.label(tr("review_title"), "TitleLabel"))
-	card.add_child(UI.label(tr("review_body")))
-	var rate := UI.button(tr("btn_review"), true)
-	rate.name = "ReviewButton"
-	rate.pressed.connect(func() -> void: NativeBridge.request_review())
-	card.add_child(rate)
-	var later := UI.flat_button(tr("btn_not_now"))
-	later.name = "ReviewLater"
-	later.pressed.connect(func() -> void:
-		var panel := card.get_parent()
-		if panel:
-			panel.queue_free()
-	)
-	card.add_child(later)
-	_result_box.add_child(UI.card_panel(card))
+	if not was_adjustment:
+		Profile.note_successful_pattern()
 
 
 func _show_result(result: Dictionary) -> void:
@@ -177,6 +158,17 @@ func _show_result(result: Dictionary) -> void:
 	share.disabled = pdf_path == ""
 	share.pressed.connect(_share.bind(pdf_path))
 	_result_box.add_child(share)
+	var print_button := UI.icon_button(tr("btn_print"), "page")
+	print_button.name = "PrintButton"
+	print_button.disabled = pdf_path == ""
+	print_button.pressed.connect(_print.bind(pdf_path))
+	_result_box.add_child(print_button)
+	if OS.has_feature("android") or OS.get_name() == "Android":
+		var save := UI.icon_button(tr("btn_save_device"), "doc")
+		save.name = "SaveButton"
+		save.disabled = pdf_path == ""
+		save.pressed.connect(_save.bind(pdf_path))
+		_result_box.add_child(save)
 	_result_box.add_child(UI.caption(tr("draft_print_tip")))
 	_result_box.add_child(UI.spacer(4))
 	_result_box.add_child(UI.section(tr("draft_next")))
@@ -235,6 +227,41 @@ func _share(pdf_path: String) -> void:
 	NativeBridge.share_file(pdf_path, "application/pdf", DesignCatalog.display_name(str(session().get("design", ""))))
 
 
+func _print(pdf_path: String) -> void:
+	show_error(_error, "")
+	if not NativeBridge.print_finished.is_connected(_on_printed):
+		NativeBridge.print_finished.connect(_on_printed, CONNECT_ONE_SHOT)
+	NativeBridge.print_file(pdf_path, DesignCatalog.display_name(str(session().get("design", ""))))
+
+
+func _save(pdf_path: String) -> void:
+	show_error(_error, "")
+	if not NativeBridge.save_finished.is_connected(_on_saved):
+		NativeBridge.save_finished.connect(_on_saved, CONNECT_ONE_SHOT)
+	var meta := PatternLibrary.read_meta(pdf_path)
+	NativeBridge.save_file(pdf_path, PatternLibrary.suggested_filename(str(meta.get("design", session().get("design", ""))), str(meta.get("date", ""))))
+
+
 func _on_shared(status: String) -> void:
 	if status == "error" and is_inside_tree():
 		show_error(_error, "share_failed")
+
+
+func _on_printed(status: String) -> void:
+	if (status == "error" or status == "unavailable") and is_inside_tree():
+		show_error(_error, "patterns_print_failed")
+
+
+func _on_saved(status: String) -> void:
+	if not is_inside_tree():
+		return
+	if status == "ok":
+		_error.theme_type_variation = "CaptionLabel"
+		_error.text = tr("patterns_saved")
+		_error.visible = true
+	elif status == "cancelled":
+		_error.theme_type_variation = "ErrorLabel"
+		show_error(_error, "patterns_save_cancelled")
+	elif status == "error" or status == "unavailable":
+		_error.theme_type_variation = "ErrorLabel"
+		show_error(_error, "patterns_save_failed")

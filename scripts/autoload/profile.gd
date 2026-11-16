@@ -23,6 +23,10 @@ var known_credits := 0
 var known_unlimited := false
 ## The person agreed that a garment photo may be sent to Gemini. Withdrawn consent is false.
 var photo_consent := false
+## Last in-app review ask. At most once for this app version, and not again for 30 days.
+var review_version := ""
+var review_asked_at := 0
+const REVIEW_GAP_SECONDS := 30 * 24 * 60 * 60
 
 
 func _ready() -> void:
@@ -40,6 +44,8 @@ func load_profile() -> void:
 	known_credits = 0
 	known_unlimited = false
 	photo_consent = false
+	review_version = ""
+	review_asked_at = 0
 	if FileAccess.file_exists(path):
 		var json := JSON.new()
 		if json.parse(FileAccess.get_file_as_string(path)) == OK and typeof(json.data) == TYPE_DICTIONARY:
@@ -71,6 +77,8 @@ func to_dict() -> Dictionary:
 		"knownCredits": known_credits,
 		"knownUnlimited": known_unlimited,
 		"photoConsent": photo_consent,
+		"reviewVersion": review_version,
+		"reviewAskedAt": review_asked_at,
 	}
 
 
@@ -104,8 +112,23 @@ func set_large_text(enabled: bool) -> void:
 	large_text = enabled
 
 
-## Counts a finished pattern. The review prompt uses the second one.
-## Every pattern after the free first one uses a known credit unless unlimited.
+## At most once for this app version, and not again until 30 days after the last ask.
+func may_ask_review() -> bool:
+	var version := str(ProjectSettings.get_setting("application/config/version", ""))
+	if version != "" and review_version == version:
+		return false
+	if review_asked_at > 0 and int(Time.get_unix_time_from_system()) - review_asked_at < REVIEW_GAP_SECONDS:
+		return false
+	return true
+
+
+func note_review_asked() -> void:
+	review_version = str(ProjectSettings.get_setting("application/config/version", ""))
+	review_asked_at = int(Time.get_unix_time_from_system())
+	save()
+
+
+## Counts a finished pattern. Every pattern after the free first one uses a known credit unless unlimited.
 func note_successful_pattern() -> int:
 	successful_patterns += 1
 	var spent := false
@@ -172,6 +195,8 @@ func _apply(source: Dictionary) -> void:
 	known_credits = maxi(0, int(source.get("knownCredits", 0)))
 	known_unlimited = bool(source.get("knownUnlimited", false))
 	photo_consent = bool(source.get("photoConsent", false))
+	review_version = str(source.get("reviewVersion", ""))
+	review_asked_at = maxi(0, int(source.get("reviewAskedAt", 0)))
 
 
 func _push_overrides() -> void:

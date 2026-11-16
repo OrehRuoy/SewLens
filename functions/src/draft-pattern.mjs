@@ -5,7 +5,7 @@ import { plugin as pluginTransform } from '@freesewing/plugin-transform'
 import { clampOptions, optionKinds } from './clamp.mjs'
 import { DESIGN_NAMES, DESIGNS } from './designs.mjs'
 import { patternPieces } from './geometry.mjs'
-import { formatMeasurement, pieceLabel, translate, translatePhrase, uiLabels } from './labels.mjs'
+import { cutLinesFromStore, formatMeasurement, pieceLabel, translate, translatePhrase, uiLabels } from './labels.mjs'
 import { stylePatternSvg } from './pattern-svg.mjs'
 import { renderPatternPdf } from './pdf.mjs'
 import { normalizeLocale, normalizePaper, normalizeUnits, toMillimetres } from './units.mjs'
@@ -95,7 +95,11 @@ export async function draftPattern(input = {}, runtime = {}) {
   } catch (error) {
     throw new PatternInputError(error.message || 'pattern failed to draft')
   }
-  const svg = stylePatternSvg(pattern.render())
+  const store = pattern.setStores?.[0] || pattern.store
+  const svg = stylePatternSvg(pattern.render(), {
+    cutLines: cutLinesFromStore(store, locale),
+    grainlineLabel: uiLabels(locale).grainline,
+  })
   const pieces = patternPieces(svg)
   const yardageMm = estimateYardage(pieces)
   const labels = uiLabels(locale)

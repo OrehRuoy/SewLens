@@ -108,6 +108,7 @@ func restore(api: ApiClient) -> Dictionary:
 		return found
 	var receipts: Array = found.get("receipts", [])
 	if receipts.is_empty():
+		NativeBridge.block_review()
 		return {"ok": true, "empty": true}
 	var last := {"ok": true}
 	for receipt in receipts:
@@ -123,6 +124,7 @@ func redeem(code: String, api: ApiClient) -> Dictionary:
 	var result: Dictionary = await api.redeem_promo(code)
 	if result.get("ok", false):
 		_remember(result)
+		NativeBridge.block_review()
 		NativeBridge.log_event("purchase", {"product": "promo"})
 	return result
 
@@ -132,6 +134,7 @@ func _verify(api: ApiClient, receipt: Dictionary) -> Dictionary:
 	var product := str(receipt.get("productId", ""))
 	if result.get("ok", false):
 		_remember(result)
+		NativeBridge.block_review()
 		NativeBridge.log_event("purchase_granted", {"product": product})
 		if not bool(receipt.get("revoked", false)):
 			NativeBridge.log_event("purchase", {"product": product})
@@ -183,6 +186,7 @@ static func is_user_cancelled(loaded: Dictionary) -> bool:
 func _log_billing_error(loaded: Dictionary) -> void:
 	if is_user_cancelled(loaded):
 		return
+	NativeBridge.block_review()
 	var stage := str(loaded.get("stage", "query"))
 	if stage == "":
 		stage = "query"

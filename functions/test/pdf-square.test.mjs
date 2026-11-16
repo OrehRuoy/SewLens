@@ -2,8 +2,8 @@ import { inflateSync } from 'node:zlib'
 import { PDFDocument, PDFName } from 'pdf-lib'
 import { draftPattern } from '../src/draft-pattern.mjs'
 import { patternPieces } from '../src/geometry.mjs'
-import { markLabel, uiLabels } from '../src/labels.mjs'
-import { layoutPieces } from '../src/pdf.mjs'
+import { cutCountPhrase, markLabel, uiLabels } from '../src/labels.mjs'
+import { labelIssues, layoutPieces, patternGrid } from '../src/pdf.mjs'
 import { PT_PER_IN, PT_PER_MM } from '../src/units.mjs'
 
 function inflate(stream) {
@@ -232,9 +232,13 @@ describe('tiled pattern pages cover every piece', () => {
       const widest = Math.max(...pieces.map((piece) => piece.width))
       expect(layout.cols * layout.contentW).toBeGreaterThanOrEqual(widest - 0.05)
       const doc = await openPdf(result.pdfBase64)
-      expect(doc.getPageCount()).toBe(layout.rows * layout.cols + 2)
+      const grid = patternGrid(pieces, paper)
+      expect(doc.getPageCount()).toBe(grid.printed.length + 2)
+      expect(grid.printed.length).toBeGreaterThan(0)
       const text = await pdfText(result.pdfBase64)
+      for (const cell of grid.cells) expect(text).toContain(cell.id)
       expect(text).toContain(`A${layout.cols}`)
+      expect(await labelIssues(pieces, paper, 'en')).toEqual([])
       const rects = await rectangles(result.pdfBase64)
       const metric = rects.find((rect) => Math.abs(rect.w / PT_PER_MM - 100) < 0.05 && Math.abs(rect.h / PT_PER_MM - 100) < 0.05)
       const imperial = rects.find((rect) => Math.abs(rect.w / PT_PER_IN - 4) < 0.001 && Math.abs(rect.h / PT_PER_IN - 4) < 0.001)
@@ -244,17 +248,33 @@ describe('tiled pattern pages cover every piece', () => {
       expect(style).toBeTruthy()
       expect(style[0]).toMatch(/fill:\s*none/)
       expect(style[0].length).toBeGreaterThan(200)
-      expect(result.svg).toMatch(/\.hidden[\s\S]{0,120}display:\s*none/)
+      expect(result.svg).toMatch(/\.note:not\(\.sewlens-mark\)/)
+      expect(result.svg).toMatch(/\.help:not\(\.sewlens-mark\)/)
+      expect(result.svg).toMatch(/\.hidden[\s\S]{0,160}display:\s*none/)
       expect(result.svg).toMatch(/\.sewlens-mark[\s\S]{0,160}stroke:\s*#212121/)
       const marks = result.svg.match(/<path\b[^>]*class="[^"]*\bsewlens-mark\b[^"]*"[^>]*\/>/g) || []
       expect(marks.length).toBeGreaterThan(0)
-      for (const path of marks) expect(path).not.toMatch(/display:\s*none/)
+      for (const path of marks) {
+        expect(path).not.toMatch(/display:\s*none/)
+        const className = (/class="([^"]*)"/.exec(path)?.[1] || '').split(/\s+/)
+        expect(className).not.toContain('note')
+        expect(className).not.toContain('help')
+      }
       for (const path of result.svg.match(/<path\b[^>]*class="[^"]*\bfabric\b[^"]*"[^>]*\/>/g) || []) {
         expect(path).toMatch(/fill="none"/)
         expect(path).not.toMatch(/fill="(?:#000(?:000)?|black)"/i)
       }
       for (const piece of pieces) {
-        expect(piece.paths.some((path) => path.className.includes('sewlens-mark'))).toBe(true)
+        let longest = 0
+        for (const path of piece.paths) {
+          if (!path.className.includes('sewlens-mark')) continue
+          for (const segment of path.geometry.segments) longest = Math.max(longest, segment.length)
+        }
+        expect(longest).toBeGreaterThan(12)
+        const at = result.svg.indexOf(`id="fs-stack-${piece.name}-part-${piece.name}"`)
+        const nextAt = result.svg.indexOf('id="fs-stack-', at + 12)
+        const inner = result.svg.slice(at, nextAt === -1 ? undefined : nextAt)
+        expect(inner).toMatch(/Cut \d|data-sewlens-cut="1"/)
       }
       const labels = spanText(result.svg).join('\n')
       assertCleanText(labels, design)
@@ -269,8 +289,18 @@ describe('tiled pattern pages cover every piece', () => {
         expect(result.svg).toContain('sewlens-mark')
         expect(result.svg).not.toMatch(/xlink:href="#notch"/)
       }
+      if (design === 'penelope') {
+        const front = pieces.find((piece) => piece.name.toLowerCase().includes('front'))
+        const at = result.svg.indexOf(`id="fs-stack-${front.name}-part-${front.name}"`)
+        const inner = result.svg.slice(at, result.svg.indexOf('id="fs-stack-', at + 12))
+        expect(inner).toContain('Cut 1 on fold')
+      }
       if (design === 'aaron') {
-        expect(labels).toContain('Fold here')
+        const folds = spanText(result.svg).filter((line) => line.trim() === 'Fold here')
+        const foldPaths = (result.svg.match(/data-sewlens-fold="1"/g) || []).length
+        expect(foldPaths).toBeGreaterThan(0)
+        expect(folds).toHaveLength(foldPaths)
+        expect(result.svg).not.toContain('Fold here Fold here')
         expect(text).toContain('Fold here')
       }
     },
@@ -292,6 +322,17 @@ describe('tiled pattern pages cover every piece', () => {
       expect(labels).toContain(uiLabels(locale).cutOnFold)
       expect(labels).toContain(markLabel(locale, 'foldHere'))
       assertCleanText(labels, `aaron ${locale}`)
+      const skirt = await draftPattern({
+        design: 'penelope',
+        measurements: GARMENTS.penelope,
+        units: 'metric',
+        locale,
+        paper: 'a4',
+        pdf: false,
+      })
+      const skirtText = spanText(skirt.svg).join('\n')
+      expect(skirtText).toContain(cutCountPhrase(locale, { cut: 1, onFold: true }))
+      assertCleanText(skirtText, `penelope ${locale}`)
     }
-  }, 60000)
+  }, 180000)
 })

@@ -16,6 +16,7 @@ const SCREENS := {
 	"paywall": "res://scenes/screens/paywall.tscn",
 	"licenses": "res://scenes/screens/licenses.tscn",
 	"settings": "res://scenes/screens/settings.tscn",
+	"patterns": "res://scenes/screens/patterns.tscn",
 }
 const HEADER_HEIGHT := 60.0
 ## The header title stays two lines tall with Larger text, so long German titles still fit.

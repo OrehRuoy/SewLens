@@ -70,7 +70,10 @@ func _render() -> void:
 	var measurements := UI.list_row(tr("btn_my_measurements"), "tape")
 	measurements.name = "MeasurementsButton"
 	measurements.pressed.connect(func() -> void: router.go("measurements"))
-	page.add_child(UI.group([units, paper, measurements]))
+	var saved := UI.list_row(tr("btn_my_patterns"), "page")
+	saved.name = "MyPatternsButton"
+	saved.pressed.connect(func() -> void: router.go("patterns"))
+	page.add_child(UI.group([units, paper, measurements, saved]))
 
 	page.add_child(_gap())
 	page.add_child(UI.section(tr("section_purchases")))

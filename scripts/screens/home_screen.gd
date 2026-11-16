@@ -44,7 +44,10 @@ func enter(_params: Dictionary) -> void:
 	var profile := UI.list_row(tr("btn_my_measurements"), "tape")
 	profile.name = "MeasurementsButton"
 	profile.pressed.connect(func() -> void: router.go("measurements"))
-	page.add_child(UI.group([manual, profile]))
+	var saved := UI.list_row(tr("btn_my_patterns"), "page")
+	saved.name = "MyPatternsButton"
+	saved.pressed.connect(func() -> void: router.go("patterns"))
+	page.add_child(UI.group([manual, profile, saved]))
 	var privacy := UI.bullet(tr("onb_privacy"), "lock")
 	(privacy.get_child(1) as Label).theme_type_variation = "CaptionLabel"
 	page.add_child(privacy)

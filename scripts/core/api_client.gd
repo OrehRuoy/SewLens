@@ -62,7 +62,12 @@ func draft_pattern(design: String, measurements_mm: Dictionary, options: Diction
 	result.latency_ms = _latency(result, started)
 	var pdf_base64 := str(result.get("pdfBase64", ""))
 	if pdf_base64 != "":
-		result.pdf_path = save_pdf(design, Marshalls.base64_to_raw(pdf_base64))
+		var paper_name := "Letter" if str(result.get("paper", paper)).to_lower() == "letter" else "A4"
+		result.pdf_path = save_pdf(design, Marshalls.base64_to_raw(pdf_base64), {
+			"paper": paper_name,
+			"summary": PatternLibrary.summary(measurements_mm, unit),
+			"date": Time.get_datetime_string_from_system(false, true),
+		})
 	result.erase("pdfBase64")
 	return result
 
@@ -138,7 +143,7 @@ func endpoint(function_name: String) -> String:
 	return PRODUCTION_BASE + function_name
 
 
-func save_pdf(design: String, bytes: PackedByteArray) -> String:
+func save_pdf(design: String, bytes: PackedByteArray, meta: Dictionary = {}) -> String:
 	DirAccess.make_dir_recursive_absolute(pattern_dir)
 	var stamp := Time.get_datetime_string_from_system(false, false).replace(":", "").replace("-", "").replace("T", "-")
 	var file_path := "%s/SewLens-%s-%s.pdf" % [pattern_dir, design, stamp]
@@ -147,6 +152,14 @@ func save_pdf(design: String, bytes: PackedByteArray) -> String:
 		return ""
 	file.store_buffer(bytes)
 	file.close()
+	var stored := meta.duplicate()
+	stored["design"] = design
+	if str(stored.get("date", "")) == "":
+		stored["date"] = Time.get_datetime_string_from_system(false, true)
+	var previous := PatternLibrary.directory
+	PatternLibrary.directory = pattern_dir
+	PatternLibrary.write_meta(file_path, stored)
+	PatternLibrary.directory = previous
 	return file_path
 
 

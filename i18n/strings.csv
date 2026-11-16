@@ -29,6 +29,7 @@ btn_choose_photo,Choose a photo,Foto auswählen,Choisir une photo,Elegir una fot
 btn_sample_photo,Try the sample photo,Beispielfoto ausprobieren,Essayer la photo d'exemple,Probar la foto de ejemplo,Testar a foto de exemplo,サンプル写真で試す,Prova la foto di esempio,Probeer de voorbeeldfoto
 btn_pick_design_manual,Choose a design myself,Design selbst auswählen,Choisir un modèle moi-même,Elegir un diseño por mi cuenta,Escolher um modelo por conta própria,自分でデザインを選ぶ,Scegli tu un modello,Zelf een ontwerp kiezen
 btn_my_measurements,My measurements,Meine Maße,Mes mesures,Mis medidas,Minhas medidas,自分のサイズ,Le mie misure,Mijn maten
+btn_my_patterns,My patterns,Meine Schnittmuster,Mes patrons,Mis patrones,Meus moldes,マイパターン,I miei cartamodelli,Mijn patronen
 photo_unavailable,The camera is not available on this device.,Die Kamera ist auf diesem Gerät nicht verfügbar.,L'appareil photo n'est pas disponible sur cet appareil.,La cámara no está disponible en este dispositivo.,A câmera não está disponível neste aparelho.,このデバイスではカメラを使えません。,La fotocamera non è disponibile su questo dispositivo.,De camera is niet beschikbaar op dit apparaat.
 photo_failed,The photo could not be opened. Try another photo.,Das Foto konnte nicht geöffnet werden. Versuche ein anderes Foto.,Impossible d'ouvrir la photo. Essayez-en une autre.,No se pudo abrir la foto. Prueba con otra.,Não foi possível abrir a foto. Tente outra.,写真を開けませんでした。別の写真を試してください。,Impossibile aprire la foto. Provane un'altra.,De foto kon niet worden geopend. Probeer een andere foto.
 title_analyze,Finding a design,Design wird gesucht,Recherche du modèle,Buscando un diseño,Buscando um modelo,デザインを探しています,Ricerca del modello,Ontwerp zoeken
@@ -233,10 +234,22 @@ btn_licenses,Open source licenses,Open-Source-Lizenzen,Licences open source,Lice
 title_licenses,Open source licenses,Open-Source-Lizenzen,Licences open source,Licencias de código abierto,Licenças de código aberto,オープンソースライセンス,Licenze open source,Open-sourcelicenties
 licenses_heading,Open source licenses,Open-Source-Lizenzen,Licences open source,Licencias de código abierto,Licenças de código aberto,オープンソースライセンス,Licenze open source,Open-sourcelicenties
 licenses_credit,Based on FreeSewing,Basiert auf FreeSewing,Basé sur FreeSewing,Basado en FreeSewing,Baseado no FreeSewing,FreeSewing を使用,Basato su FreeSewing,Gebaseerd op FreeSewing
-review_title,Enjoying SewLens?,Gefällt dir SewLens?,SewLens vous plaît ?,¿Te gusta SewLens?,Gostando do SewLens?,SewLensは気に入りましたか？,Ti piace SewLens?,Bevalt SewLens?
-review_body,You have drafted two patterns. A short review helps other sewists.,Du hast zwei Schnittmuster erstellt. Eine kurze Bewertung hilft anderen.,Vous avez créé deux patrons. Un court avis aide les autres.,Has creado dos patrones. Una reseña breve ayuda a otras personas.,Você criou dois moldes. Uma avaliação curta ajuda outras pessoas.,型紙を2枚作りました。短いレビューが他の人の助けになります。,Hai creato due cartamodelli. Una breve recensione aiuta gli altri.,Je hebt twee patronen gemaakt. Een korte recensie helpt anderen.
-btn_review,Rate SewLens,SewLens bewerten,Noter SewLens,Valorar SewLens,Avaliar o SewLens,SewLensを評価,Valuta SewLens,SewLens beoordelen
-btn_not_now,Not now,Nicht jetzt,Pas maintenant,Ahora no,Agora não,今はしない,Non ora,Niet nu
+title_my_patterns,My patterns,Meine Schnittmuster,Mes patrons,Mis patrones,Meus moldes,マイパターン,I miei cartamodelli,Mijn patronen
+patterns_empty_title,No saved patterns,Keine gespeicherten Schnittmuster,Aucun patron enregistré,No hay patrones guardados,Nenhum molde salvo,保存した型紙はありません,Nessun cartamodello salvato,Geen opgeslagen patronen
+patterns_empty_body,Patterns you draft stay on this phone.,Schnittmuster die du erstellst bleiben auf diesem Handy.,Les patrons que vous créez restent sur ce téléphone.,Los patrones que creas se quedan en este teléfono.,Os moldes que você cria ficam neste celular.,作った型紙はこのスマートフォンに残ります。,I cartamodelli che crei restano su questo telefono.,Patronen die je maakt blijven op deze telefoon.
+btn_open_pattern,Open,Öffnen,Ouvrir,Abrir,Abrir,開く,Apri,Openen
+btn_print,Print,Drucken,Imprimer,Imprimir,Imprimir,印刷,Stampa,Afdrukken
+btn_save_device,Save to device,Auf dem Gerät sichern,Enregistrer sur l'appareil,Guardar en el dispositivo,Salvar no dispositivo,端末に保存,Salva sul dispositivo,Opslaan op het apparaat
+btn_delete_pattern,Delete,Löschen,Supprimer,Eliminar,Excluir,削除,Elimina,Verwijderen
+patterns_delete_title,Delete this pattern?,Dieses Schnittmuster löschen?,Supprimer ce patron ?,¿Eliminar este patrón?,Excluir este molde?,この型紙を削除しますか？,Eliminare questo cartamodello?,Dit patroon verwijderen?
+patterns_delete_body,This removes the PDF from this phone.,Das PDF wird von diesem Handy entfernt.,Le PDF est retiré de ce téléphone.,El PDF se quita de este teléfono.,O PDF sai deste celular.,PDFがこのスマートフォンから消えます。,Il PDF viene rimosso da questo telefono.,De PDF verdwijnt van deze telefoon.
+btn_delete_confirm,Delete,Löschen,Supprimer,Eliminar,Excluir,削除,Elimina,Verwijderen
+patterns_saved,Saved on this phone.,Auf diesem Handy gesichert.,Enregistré sur ce téléphone.,Guardado en este teléfono.,Salvo neste celular.,このスマートフォンに保存しました。,Salvato su questo telefono.,Opgeslagen op deze telefoon.
+patterns_save_cancelled,Save was cancelled.,Sichern abgebrochen.,Enregistrement annulé.,Guardado cancelado.,Salvamento cancelado.,保存を取り消しました。,Salvataggio annullato.,Opslaan geannuleerd.
+patterns_save_failed,The pattern could not be saved.,Das Schnittmuster konnte nicht gesichert werden.,Le patron n'a pas pu être enregistré.,No se pudo guardar el patrón.,Não foi possível salvar o molde.,型紙を保存できませんでした。,Non è stato possibile salvare il cartamodello.,Het patroon kon niet worden opgeslagen.
+patterns_print_failed,The pattern could not be printed.,Das Schnittmuster konnte nicht gedruckt werden.,Le patron n'a pas pu être imprimé.,No se pudo imprimir el patrón.,Não foi possível imprimir o molde.,型紙を印刷できませんでした。,Non è stato possibile stampare il cartamodello.,Het patroon kon niet worden afgedrukt.
+patterns_open_failed,The pattern could not be opened.,Das Schnittmuster konnte nicht geöffnet werden.,Le patron n'a pas pu être ouvert.,No se pudo abrir el patrón.,Não foi possível abrir o molde.,型紙を開けませんでした。,Non è stato possibile aprire il cartamodello.,Het patroon kon niet worden geopend.
+patterns_paper_unknown,Paper size unknown,Papiergröße unbekannt,Format de papier inconnu,Tamaño de papel desconocido,Tamanho do papel desconhecido,用紙サイズ不明,Formato carta sconosciuto,Papierformaat onbekend
 section_display,Language and text,Sprache und Text,Langue et texte,Idioma y texto,Idioma e texto,言語と文字,Lingua e testo,Taal en tekst
 section_measuring,Measuring and printing,Messen und Drucken,Mesures et impression,Medidas e impresión,Medidas e impressão,採寸と印刷,Misure e stampa,Meten en printen
 section_purchases,Patterns and purchases,Schnittmuster und Käufe,Patrons et achats,Patrones y compras,Moldes e compras,型紙と購入,Cartamodelli e acquisti,Patronen en aankopen
