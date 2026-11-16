@@ -77,10 +77,10 @@ export function measurementLabel(locale, name) {
 const CUTS = {
   en: {
     plain: 'Cut {n}',
-    fold: 'Cut {n} on fold',
+    fold: 'Cut {n} on the fold',
     mirrored: 'Cut {n} mirrored',
     bias: 'Cut {n} on the bias',
-    mirroredFold: 'Cut {n} mirrored on fold',
+    mirroredFold: 'Cut {n} mirrored on the fold',
   },
   de: {
     plain: '{n} schneiden',
@@ -133,7 +133,7 @@ const CUTS = {
   },
 }
 
-/** "Cut 1 on fold", "Cut 2 mirrored", and the plain count, in the locale. */
+/** "Cut 1 on the fold", "Cut 2 mirrored", and the plain count, in the locale. */
 export function cutCountPhrase(locale, instruction = {}) {
   const language = languageOf(locale)
   const table = CUTS[language] || CUTS.en

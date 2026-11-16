@@ -289,9 +289,21 @@ function boxOf(inner, className) {
   return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY }
 }
 
-function hasLongMark(inner) {
+/** Spread parallel fold labels along the line so they do not sit on top of each other. */
+function foldAlong(x) {
+  const slot = Math.abs(Math.round(Number(x) || 0)) % 4
+  return 0.36 + slot * 0.15
+}
+
+/** A real grainline, not a fold line and not a cut-on-fold bracket. */
+function hasGrainline(inner) {
   for (const match of inner.matchAll(/<path\b([^>]*\bsewlens-mark\b[^>]*)\/>/g)) {
-    const geometry = flattenPath(attr(match[1], 'd'))
+    const attrs = match[1]
+    if (attr(attrs, 'data-sewlens-fold') === '1') continue
+    const synthetic = attr(attrs, 'data-sewlens-grain') === '1'
+    const marked = /marker-(?:start|end)="[^"]*grainline/i.test(attrs)
+    if (!synthetic && !marked) continue
+    const geometry = flattenPath(attr(attrs, 'd'))
     if (geometry.segments.some((segment) => segment.length > 12)) return true
   }
   return false
@@ -306,7 +318,6 @@ function singleFoldLabels(svg) {
   }
   if (!phrases.size) return svg
   let next = svg.replace(/<text\b[^>]*>[\s\S]*?<\/text>/g, (block) => {
-    if (!/<textPath\b/.test(block)) return block
     const text = collapseRepeats(textOf(block))
     return phrases.has(text) ? '' : block
   })
@@ -316,7 +327,7 @@ function singleFoldLabels(svg) {
     if (!label || points.length < 2) return full
     const start = points[0]
     const end = points[points.length - 1]
-    const along = 0.78
+    const along = foldAlong(start.x)
     const x = start.x + (end.x - start.x) * along
     const y = start.y + (end.y - start.y) * along
     const dx = end.x - start.x
@@ -334,16 +345,28 @@ function escapeText(value) {
   return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+function stampCutCount(svg, idIndex, text) {
+  const open = svg.lastIndexOf('<g', idIndex)
+  const end = svg.indexOf('>', idIndex)
+  if (open < 0 || end < 0) return svg
+  const tag = svg.slice(open, end)
+  if (/data-sewlens-cut="/.test(tag)) return svg
+  const stamped = tag.replace('<g', `<g data-sewlens-cut="${escapeText(text)}"`)
+  return svg.slice(0, open) + stamped + svg.slice(end)
+}
+
 /** A cut-count line on every piece whose title was drawn before the cutlist. */
 function addCutCounts(svg, lines) {
   let next = svg
   for (const line of lines) {
-    const idIndex = partIdAt(next, line.part)
+    let idIndex = partIdAt(next, line.part)
     if (idIndex < 0 || !line.text) continue
+    next = stampCutCount(next, idIndex, line.text)
+    idIndex = partIdAt(next, line.part)
     const bounds = groupBounds(next, idIndex)
     if (!bounds) continue
     const inner = next.slice(bounds.open, bounds.close)
-    if (inner.includes(line.text) || inner.includes('data-sewlens-cut=')) continue
+    if (textOf(inner).includes(line.text) || inner.includes('data-sewlens-cut="1"')) continue
     if (partHasCutCount(inner, line.cutWord)) continue
     const box = boxOf(inner, 'fabric') || boxOf(inner, '')
     const x = box ? box.minX + Math.min(8, box.width * 0.12) : 4
@@ -361,7 +384,30 @@ function partHasCutCount(inner, cutWord) {
   return new RegExp(`${word}\\s*\\d|\\d\\s*${word}`, 'i').test(plain)
 }
 
-/** A piece with neither a grainline nor a fold line gets a grainline through its fabric. */
+/** A point on the long axis that does not sit on a fold line. */
+function clearOfFolds(box, vertical, inner) {
+  const folds = []
+  for (const match of inner.matchAll(/<path\b([^>]*data-sewlens-fold="1"[^>]*)\/>/g)) {
+    const points = linePoints(attr(match[1], 'd'))
+    if (points.length) folds.push(vertical ? points[0].x : points[0].y)
+  }
+  const min = vertical ? box.minX : box.minY
+  const max = vertical ? box.maxX : box.maxY
+  let best = (min + max) / 2
+  if (!folds.length || max - min < 4) return best
+  let bestDist = -1
+  for (let value = min + 1; value <= max - 1; value += 1) {
+    let dist = max - min
+    for (const fold of folds) dist = Math.min(dist, Math.abs(fold - value))
+    if (dist > bestDist) {
+      bestDist = dist
+      best = value
+    }
+  }
+  return best
+}
+
+/** Every piece gets a grainline. A fold line does not count. */
 function ensureGrainOrFold(svg, grainlineLabel) {
   const ids = [...svg.matchAll(/id="(fs-stack-(.+?)-part-\2)"/g)]
   let next = svg
@@ -371,17 +417,18 @@ function ensureGrainOrFold(svg, grainlineLabel) {
     const bounds = groupBounds(next, idIndex)
     if (!bounds) continue
     const inner = next.slice(bounds.open, bounds.close)
-    if (hasLongMark(inner)) continue
+    if (hasGrainline(inner)) continue
     const box = boxOf(inner, 'fabric') || boxOf(inner, '')
     if (!box || box.width < 8 || box.height < 8) continue
     const vertical = box.height >= box.width
     const inset = 0.18
-    const x1 = vertical ? (box.minX + box.maxX) / 2 : box.minX + box.width * inset
-    const x2 = vertical ? x1 : box.maxX - box.width * inset
-    const y1 = vertical ? box.minY + box.height * inset : (box.minY + box.maxY) / 2
-    const y2 = vertical ? box.maxY - box.height * inset : y1
+    const axis = clearOfFolds(box, vertical, inner)
+    const x1 = vertical ? axis : box.minX + box.width * inset
+    const x2 = vertical ? axis : box.maxX - box.width * inset
+    const y1 = vertical ? box.minY + box.height * inset : axis
+    const y2 = vertical ? box.maxY - box.height * inset : axis
     const label = grainlineLabel || 'Grainline'
-    const path = `<path class="sewlens-mark" data-sewlens-label="${escapeText(label)}" d="M ${round(x1)} ${round(y1)} L ${round(x2)} ${round(y2)}"/>`
+    const path = `<path class="sewlens-mark" data-sewlens-grain="1" data-sewlens-label="${escapeText(label)}" d="M ${round(x1)} ${round(y1)} L ${round(x2)} ${round(y2)}"/>`
     const arrows = arrowPath(`M ${x1} ${y1} L ${x2} ${y2}`, { start: '', end: 'grainline' })
     const head = arrows ? `<path class="sewlens-mark" d="${arrows}"/>` : ''
     next = `${next.slice(0, bounds.close)}${path}${head}${next.slice(bounds.close)}`

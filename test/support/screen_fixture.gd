@@ -47,6 +47,8 @@ static func prepare_profile() -> void:
 	Profile.load_profile()
 	NativeBridge.review_blocked = false
 	NativeBridge.review_requests = 0
+	NativeBridge.android_for_test = null
+	NativeBridge.export_counts_for_review = true
 	NativeBridge.export_result_for_test = ""
 	PatternLibrary.directory = PATTERN_DIR
 	if DirAccess.dir_exists_absolute(PATTERN_DIR):

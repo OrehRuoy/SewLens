@@ -37,6 +37,10 @@ var export_result_for_test := ""
 ## A billing error, a failed draft, or a purchase in this session.
 var review_blocked := false
 var review_requests := 0
+## Tests set this to force the Android review rules. Null follows the device.
+var android_for_test = null
+## A fit-feedback result's print, share, or save must not ask or count.
+var export_counts_for_review := true
 
 
 func _ready() -> void:
@@ -103,24 +107,34 @@ func request_review() -> void:
 		_send_ios_request({"action": "review"})
 
 
-## First successful print, share, or save. Errors and cancels do not ask.
+func _review_on_android() -> bool:
+	if android_for_test != null:
+		return bool(android_for_test)
+	return OS.has_feature("android") or OS.get_name() == "Android"
+
+
+## First confirmed print, share, or save. Opening a chooser is not a success.
+## Android share and print never ask, because completion cannot be confirmed.
 func note_pattern_export(kind: String, status: String) -> void:
 	var success := false
+	var android := _review_on_android()
 	if kind == "share":
 		if status == "error":
 			block_review()
-		elif status == "ok" or status == "opened":
+		elif not android and status == "ok":
 			success = true
 	elif kind == "print":
 		if status == "error" or status == "unavailable":
 			block_review()
-		elif status == "ok" or status == "started":
+		elif not android and status == "ok":
 			success = true
 	elif kind == "save":
 		if status == "error":
 			block_review()
 		elif status == "ok":
 			success = true
+	if not export_counts_for_review:
+		return
 	if success and not review_blocked and Profile.may_ask_review():
 		Profile.note_review_asked()
 		request_review()

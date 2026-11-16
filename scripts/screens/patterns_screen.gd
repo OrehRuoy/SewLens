@@ -69,6 +69,7 @@ func _open(path: String) -> void:
 
 
 func _share(path: String, design: String) -> void:
+	NativeBridge.export_counts_for_review = true
 	_clear_status()
 	if not NativeBridge.share_finished.is_connected(_on_shared):
 		NativeBridge.share_finished.connect(_on_shared, CONNECT_ONE_SHOT)
@@ -76,6 +77,7 @@ func _share(path: String, design: String) -> void:
 
 
 func _print(path: String, design: String) -> void:
+	NativeBridge.export_counts_for_review = true
 	_clear_status()
 	if not NativeBridge.print_finished.is_connected(_on_printed):
 		NativeBridge.print_finished.connect(_on_printed, CONNECT_ONE_SHOT)
@@ -83,6 +85,7 @@ func _print(path: String, design: String) -> void:
 
 
 func _save(path: String, design: String, date: String) -> void:
+	NativeBridge.export_counts_for_review = true
 	_clear_status()
 	if not NativeBridge.save_finished.is_connected(_on_saved):
 		NativeBridge.save_finished.connect(_on_saved, CONNECT_ONE_SHOT)

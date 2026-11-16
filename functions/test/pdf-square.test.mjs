@@ -266,11 +266,18 @@ describe('tiled pattern pages cover every piece', () => {
       }
       for (const piece of pieces) {
         let longest = 0
+        const grain = piece.paths.some((path) => path.grain && !path.fold && path.geometry.segments.some((segment) => {
+          longest = Math.max(longest, segment.length)
+          return segment.length > 12
+        }))
         for (const path of piece.paths) {
           if (!path.className.includes('sewlens-mark')) continue
           for (const segment of path.geometry.segments) longest = Math.max(longest, segment.length)
         }
         expect(longest).toBeGreaterThan(12)
+        expect(grain).toBe(true)
+        expect(piece.cutCount).toMatch(/\d/)
+        expect(text).toContain(piece.cutCount)
         const at = result.svg.indexOf(`id="fs-stack-${piece.name}-part-${piece.name}"`)
         const nextAt = result.svg.indexOf('id="fs-stack-', at + 12)
         const inner = result.svg.slice(at, nextAt === -1 ? undefined : nextAt)
@@ -293,15 +300,17 @@ describe('tiled pattern pages cover every piece', () => {
         const front = pieces.find((piece) => piece.name.toLowerCase().includes('front'))
         const at = result.svg.indexOf(`id="fs-stack-${front.name}-part-${front.name}"`)
         const inner = result.svg.slice(at, result.svg.indexOf('id="fs-stack-', at + 12))
-        expect(inner).toContain('Cut 1 on fold')
+        expect(inner).toContain('Cut 1 on the fold')
       }
       if (design === 'aaron') {
         const folds = spanText(result.svg).filter((line) => line.trim() === 'Fold here')
         const foldPaths = (result.svg.match(/data-sewlens-fold="1"/g) || []).length
+        const foldYs = [...result.svg.matchAll(/class="sewlens-fold-label"[^>]*>\s*<tspan[^>]*y="([^"]+)"/g)].map((match) => Math.round(Number(match[1])))
         expect(foldPaths).toBeGreaterThan(0)
         expect(folds).toHaveLength(foldPaths)
+        expect(new Set(foldYs).size).toBeGreaterThan(1)
         expect(result.svg).not.toContain('Fold here Fold here')
-        expect(text).toContain('Fold here')
+        expect(text.split('Fold here').length - 1).toBe(foldPaths)
       }
     },
     60000

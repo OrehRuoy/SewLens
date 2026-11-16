@@ -163,8 +163,10 @@ export function pathsInPart(svg, partName) {
     const d = /(?:^|\s)d="([^"]*)"/.exec(attrs)?.[1] || ''
     const className = /class="([^"]*)"/.exec(attrs)?.[1] || ''
     const label = /data-sewlens-label="([^"]*)"/.exec(attrs)?.[1] || ''
+    const fold = /data-sewlens-fold="1"/.test(attrs)
+    const grain = /data-sewlens-grain="1"/.test(attrs) || /marker-(?:start|end)="[^"]*grainline/i.test(attrs)
     const clean = sanitizePath(d)
-    if (clean) paths.push({ d: clean, className, label, geometry: flattenPath(clean) })
+    if (clean) paths.push({ d: clean, className, label, fold, grain, geometry: flattenPath(clean) })
     match = pattern.exec(chunk)
   }
   return paths
@@ -341,6 +343,18 @@ export function renderedPartNames(svg) {
   return [...svg.matchAll(/id="fs-stack-(.+?)-part-\1"/g)].map((match) => match[1])
 }
 
+function cutCountOf(svg, name) {
+  const token = `id="fs-stack-${name}-part-${name}"`
+  const at = svg.indexOf(token)
+  if (at < 0) return ''
+  const open = svg.lastIndexOf('<g', at)
+  const end = svg.indexOf('>', at)
+  if (open < 0 || end < 0) return ''
+  const marked = /data-sewlens-cut="([^"]*)"/.exec(svg.slice(open, end))
+  if (!marked) return ''
+  return marked[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+}
+
 export function patternPieces(svg) {
   const pieces = []
   for (const name of renderedPartNames(svg)) {
@@ -372,6 +386,7 @@ export function patternPieces(svg) {
     pieces.push({
       name,
       paths,
+      cutCount: cutCountOf(svg, name),
       minX,
       minY,
       maxX,

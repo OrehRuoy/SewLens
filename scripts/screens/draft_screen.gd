@@ -109,6 +109,7 @@ func _start() -> void:
 		return
 	NativeBridge.log_event("pattern_drafted", {"design": str(result.get("design", design))})
 	var was_adjustment := bool(session().get("fit_adjustment", false))
+	NativeBridge.export_counts_for_review = not was_adjustment
 	session().draft = result
 	var adjusted = result.get("options")
 	if typeof(adjusted) == TYPE_DICTIONARY and not adjusted.is_empty():

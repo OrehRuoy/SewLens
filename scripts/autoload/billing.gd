@@ -142,6 +142,7 @@ func _verify(api: ApiClient, receipt: Dictionary) -> Dictionary:
 		if transaction != "" and store != null:
 			store.finish(transaction)
 	else:
+		NativeBridge.block_review()
 		var reason := str(result.get("message", result.get("error", "verify")))
 		NativeBridge.log_event("purchase_grant_failed", {"product": product, "error": reason.substr(0, 100)})
 	return result

@@ -30,6 +30,8 @@ func after_each() -> void:
 	Profile.set_large_text(false)
 	TranslationServer.set_locale("en")
 	load("res://scripts/screens/settings_screen.gd").ios_for_test = null
+	NativeBridge.android_for_test = null
+	NativeBridge.export_counts_for_review = true
 	Fixture.restore_profile()
 
 
@@ -82,10 +84,17 @@ func test_a_purchase_event_includes_the_product() -> void:
 	assert_true(result.ok)
 	_assert_event("purchase_granted", {"product": "orehruoy.sewlens.credit"})
 	_assert_event("purchase", {"product": "orehruoy.sewlens.credit"})
+	NativeBridge.review_blocked = false
+	NativeBridge.review_requests = 0
+	Profile.review_version = ""
+	Profile.review_asked_at = 0
 	transport.queue_error("INVALID_ARGUMENT", "Play verification is not configured", 400)
 	var failed: Dictionary = await Billing.buy("orehruoy.sewlens.credit", api)
 	assert_false(failed.ok)
 	_assert_event("purchase_grant_failed", {"product": "orehruoy.sewlens.credit", "error": "Play verification is not configured"})
+	assert_true(NativeBridge.review_blocked, "a failed verify blocks review for the session")
+	NativeBridge.note_pattern_export("save", "ok")
+	assert_eq(NativeBridge.review_requests, 0)
 	Billing.store = Billing.get_node_or_null("NativeStore")
 
 
@@ -233,15 +242,18 @@ func test_review_follows_a_successful_export_not_the_pattern_count() -> void:
 	Profile.review_version = ""
 	Profile.review_asked_at = 0
 	Profile.successful_patterns = 0
+	NativeBridge.note_pattern_export("share", "opened")
+	NativeBridge.note_pattern_export("print", "started")
+	assert_eq(NativeBridge.review_requests, 0, "opening a chooser or print dialog does not ask")
 	NativeBridge.note_pattern_export("print", "ok")
 	assert_eq(NativeBridge.review_requests, 1, "the free pattern's first print asks")
 	assert_eq(Profile.successful_patterns, 0, "the ask does not depend on the pattern count")
-	NativeBridge.note_pattern_export("share", "opened")
+	NativeBridge.note_pattern_export("share", "ok")
 	assert_eq(NativeBridge.review_requests, 1, "once per app version")
 	NativeBridge.review_blocked = false
 	Profile.review_version = "1.0.19"
 	Profile.review_asked_at = int(Time.get_unix_time_from_system()) - 10 * 86400
-	NativeBridge.note_pattern_export("print", "started")
+	NativeBridge.note_pattern_export("print", "ok")
 	assert_eq(NativeBridge.review_requests, 1, "30 days have not passed")
 	Profile.review_asked_at = int(Time.get_unix_time_from_system()) - 40 * 86400
 	NativeBridge.note_pattern_export("save", "ok")
@@ -286,6 +298,50 @@ func test_review_follows_a_successful_export_not_the_pattern_count() -> void:
 	assert_null(main.find_child("ReviewCard", true, false))
 	assert_eq(Profile.successful_patterns, 2)
 	assert_does_not_have(Fixture.visible_texts(main), "Enjoying SewLens?")
+	main.queue_free()
+
+
+func test_android_share_and_print_never_ask() -> void:
+	NativeBridge.android_for_test = true
+	NativeBridge.review_requests = 0
+	NativeBridge.review_blocked = false
+	Profile.review_version = ""
+	Profile.review_asked_at = 0
+	NativeBridge.note_pattern_export("share", "opened")
+	NativeBridge.note_pattern_export("share", "ok")
+	NativeBridge.note_pattern_export("print", "started")
+	NativeBridge.note_pattern_export("print", "ok")
+	assert_eq(NativeBridge.review_requests, 0, "android share and print cannot be confirmed")
+	assert_eq(Profile.review_version, "")
+	NativeBridge.note_pattern_export("save", "ok")
+	assert_eq(NativeBridge.review_requests, 1, "a confirmed save still asks")
+	NativeBridge.android_for_test = null
+
+
+func test_a_fit_redraft_does_not_count_toward_review() -> void:
+	NativeBridge.review_requests = 0
+	NativeBridge.review_blocked = false
+	Profile.review_version = ""
+	Profile.review_asked_at = 0
+	Profile.successful_patterns = 0
+	var main := Fixture.make_main(self)
+	main.session = Fixture.session()
+	main.session.erase("draft")
+	main.session.fit_adjustment = true
+	main.api.transport.queue_result({"design": "aaron", "paper": "a4", "svg": "", "labels": {"pieces": []}, "yardage": []})
+	main.go("draft", {"autostart": true}, true)
+	await _frames(6)
+	assert_eq(Profile.successful_patterns, 0)
+	assert_false(NativeBridge.export_counts_for_review)
+	NativeBridge.note_pattern_export("print", "ok")
+	NativeBridge.note_pattern_export("share", "ok")
+	NativeBridge.note_pattern_export("save", "ok")
+	assert_eq(NativeBridge.review_requests, 0, "a fit redraft does not ask")
+	assert_eq(Profile.review_version, "")
+	assert_eq(Profile.review_asked_at, 0)
+	NativeBridge.export_counts_for_review = true
+	NativeBridge.note_pattern_export("print", "ok")
+	assert_eq(NativeBridge.review_requests, 1, "the redraft did not use up the ask")
 	main.queue_free()
 
 

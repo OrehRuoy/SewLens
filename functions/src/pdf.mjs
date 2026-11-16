@@ -364,6 +364,13 @@ function layoutPageLabels(font, locale, pieces, cell, contentW, contentH, pageHe
       size: 8,
       ...toPage(spot.x, spot.y, windowX, windowY, pageHeight),
     })
+    if (piece.cutCount) {
+      planned.push({
+        text: piece.cutCount,
+        size: 7,
+        ...toPage(spot.x, spot.y + 6, windowX, windowY, pageHeight),
+      })
+    }
     for (const path of piece.paths) {
       if (!path.label) continue
       const anchor = labelAnchor(piece, path, windowX, windowY, contentW, contentH, pageHeight)
@@ -401,9 +408,10 @@ function labelAnchor(piece, path, windowX, windowY, contentW, contentH, pageHeig
     if (!best || segment.length > best.length) best = { ...segment, start, end }
   }
   if (!best) return null
-  const along = 0.72
+  const along = path.fold ? 0.36 + (Math.abs(Math.round(best.start.x)) % 4) * 0.15 : 0.72
   const x = best.start.x + (best.end.x - best.start.x) * along
   const y = best.start.y + (best.end.y - best.start.y) * along
+  if (x < windowX || y < windowY || x >= windowX + contentW || y >= windowY + contentH) return null
   const dx = best.end.x - best.start.x
   const dy = best.end.y - best.start.y
   const length = Math.hypot(dx, dy) || 1
@@ -451,6 +459,18 @@ function placeLabels(font, planned, marks, bounds) {
       if (fits(box)) {
         chosen = box
         break
+      }
+    }
+    if (!chosen) {
+      const xs = [item.x]
+      for (let step = 8; step < bounds.w; step += 8) xs.push(item.x + step, item.x - step)
+      band: for (const dy of [0, -11, -22, -33, 11]) {
+        for (const x of xs) {
+          const box = textBox(font, item.text, x, item.y + dy, item.size)
+          if (!fits(box)) continue
+          chosen = box
+          break band
+        }
       }
     }
     if (!chosen) {
