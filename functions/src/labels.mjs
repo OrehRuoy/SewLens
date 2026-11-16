@@ -82,11 +82,227 @@ export function formatMeasurement(locale, name, mm, units, degree = false) {
   return `${label}: ${value} ${unit}`
 }
 
-/** Translate FreeSewing's English part titles when they match our glossary. */
+const ANNOTATIONS = {
+  en: {
+    cut: 'Cut',
+    from: 'from',
+    fabric: 'fabric',
+    lining: 'lining',
+    interfacing: 'interfacing',
+    canvas: 'canvas',
+    various: 'various',
+    mirrored: 'mirrored',
+    onFold: 'on the fold',
+    onBias: 'on the bias',
+    onFoldAndBias: 'on the fold and on the bias',
+    noName: 'Unnamed',
+    noVersion: 'no version',
+    includeSeamAllowance: 'This pattern includes seam allowance',
+    theWhiteInsideOfThisBoxShouldMeasure: 'The white inside of this box should measure',
+    theBlackOutsideOfThisBoxShouldMeasure: 'The black outside of this box should measure',
+    supportFreeSewingBecomeAPatron: 'Support FreeSewing. Become a patron',
+  },
+  de: {
+    cut: 'Schneiden',
+    from: 'aus',
+    fabric: 'Stoff',
+    lining: 'Futter',
+    interfacing: 'Einlage',
+    canvas: 'Einlagestoff',
+    various: 'Verschiedenes',
+    mirrored: 'gespiegelt',
+    onFold: 'im Bruch',
+    onBias: 'im Schrägschnitt',
+    onFoldAndBias: 'im Bruch und im Schrägschnitt',
+    noName: 'Ohne Namen',
+    noVersion: 'ohne Version',
+    includeSeamAllowance: 'Dieses Schnittmuster enthält Nahtzugabe',
+    theWhiteInsideOfThisBoxShouldMeasure: 'Das weiße Innere dieses Kastens sollte messen',
+    theBlackOutsideOfThisBoxShouldMeasure: 'Das schwarze Äußere dieses Kastens sollte messen',
+    supportFreeSewingBecomeAPatron: 'Unterstütze FreeSewing und werde Förderer',
+  },
+  fr: {
+    cut: 'Couper',
+    from: 'dans',
+    fabric: 'tissu',
+    lining: 'doublure',
+    interfacing: 'entoilage',
+    canvas: 'toile',
+    various: 'divers',
+    mirrored: 'en miroir',
+    onFold: 'sur le pli',
+    onBias: 'dans le biais',
+    onFoldAndBias: 'sur le pli et dans le biais',
+    noName: 'Sans nom',
+    noVersion: 'sans version',
+    includeSeamAllowance: 'Ce patron comprend la marge de couture',
+    theWhiteInsideOfThisBoxShouldMeasure: "L'intérieur blanc de ce cadre doit mesurer",
+    theBlackOutsideOfThisBoxShouldMeasure: "L'extérieur noir de ce cadre doit mesurer",
+    supportFreeSewingBecomeAPatron: 'Soutenez FreeSewing. Devenez mécène',
+  },
+  es: {
+    cut: 'Cortar',
+    from: 'de',
+    fabric: 'tela',
+    lining: 'forro',
+    interfacing: 'entretela',
+    canvas: 'entretela firme',
+    various: 'varios',
+    mirrored: 'en espejo',
+    onFold: 'al lomo',
+    onBias: 'al bies',
+    onFoldAndBias: 'al lomo y al bies',
+    noName: 'Sin nombre',
+    noVersion: 'sin versión',
+    includeSeamAllowance: 'Este patrón incluye margen de costura',
+    theWhiteInsideOfThisBoxShouldMeasure: 'El interior blanco de este recuadro debe medir',
+    theBlackOutsideOfThisBoxShouldMeasure: 'El exterior negro de este recuadro debe medir',
+    supportFreeSewingBecomeAPatron: 'Apoya a FreeSewing. Hazte mecenas',
+  },
+  'pt-BR': {
+    cut: 'Cortar',
+    from: 'de',
+    fabric: 'tecido',
+    lining: 'forro',
+    interfacing: 'entretela',
+    canvas: 'entretela firme',
+    various: 'vários',
+    mirrored: 'espelhado',
+    onFold: 'na dobra',
+    onBias: 'no viés',
+    onFoldAndBias: 'na dobra e no viés',
+    noName: 'Sem nome',
+    noVersion: 'sem versão',
+    includeSeamAllowance: 'Este molde inclui margem de costura',
+    theWhiteInsideOfThisBoxShouldMeasure: 'O interior branco desta caixa deve medir',
+    theBlackOutsideOfThisBoxShouldMeasure: 'O exterior preto desta caixa deve medir',
+    supportFreeSewingBecomeAPatron: 'Apoie o FreeSewing. Torne-se um apoiador',
+  },
+  ja: {
+    cut: '裁断',
+    from: 'から',
+    fabric: '表地',
+    lining: '裏地',
+    interfacing: '接着芯',
+    canvas: '芯地',
+    various: 'その他',
+    mirrored: '左右反転',
+    onFold: '折り山で',
+    onBias: 'バイアスで',
+    onFoldAndBias: '折り山とバイアスで',
+    noName: '名称なし',
+    noVersion: '版なし',
+    includeSeamAllowance: 'この型紙には縫い代が含まれます',
+    theWhiteInsideOfThisBoxShouldMeasure: 'この枠の白い内側のサイズ',
+    theBlackOutsideOfThisBoxShouldMeasure: 'この枠の黒い外側のサイズ',
+    supportFreeSewingBecomeAPatron: 'FreeSewingを支援する',
+  },
+  it: {
+    cut: 'Tagliare',
+    from: 'da',
+    fabric: 'tessuto',
+    lining: 'fodera',
+    interfacing: 'interfodera',
+    canvas: 'tela',
+    various: 'vari',
+    mirrored: 'a specchio',
+    onFold: 'sulla piega',
+    onBias: 'in sbieco',
+    onFoldAndBias: 'sulla piega e in sbieco',
+    noName: 'Senza nome',
+    noVersion: 'senza versione',
+    includeSeamAllowance: 'Questo cartamodello include il margine di cucitura',
+    theWhiteInsideOfThisBoxShouldMeasure: "L'interno bianco di questo riquadro deve misurare",
+    theBlackOutsideOfThisBoxShouldMeasure: "L'esterno nero di questo riquadro deve misurare",
+    supportFreeSewingBecomeAPatron: 'Sostieni FreeSewing. Diventa un sostenitore',
+  },
+  nl: {
+    cut: 'Knip',
+    from: 'uit',
+    fabric: 'stof',
+    lining: 'voering',
+    interfacing: 'vlieseline',
+    canvas: 'canvas',
+    various: 'overig',
+    mirrored: 'gespiegeld',
+    onFold: 'op de vouw',
+    onBias: 'op de bias',
+    onFoldAndBias: 'op de vouw en op de bias',
+    noName: 'Zonder naam',
+    noVersion: 'geen versie',
+    includeSeamAllowance: 'Dit patroon bevat naadtoeslag',
+    theWhiteInsideOfThisBoxShouldMeasure: 'De witte binnenkant van dit vak moet meten',
+    theBlackOutsideOfThisBoxShouldMeasure: 'De zwarte buitenkant van dit vak moet meten',
+    supportFreeSewingBecomeAPatron: 'Steun FreeSewing. Word donateur',
+  },
+}
+
+function languageOf(locale) {
+  return catalogs[locale] ? locale : 'en'
+}
+
+function humanizeKey(key) {
+  const spaced = String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ')
+  if (!spaced) return String(key)
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+/** A part id such as "front" or "armBinding", in the locale, with English fallback. */
+function partPhrase(locale, name) {
+  const tail = String(name).split('.').pop() || ''
+  if (!tail || /\s/.test(tail)) return ''
+  const lower = tail.toLowerCase()
+  const token = PART_TOKENS.find((item) => lower === item || lower.endsWith(item))
+  if (!token) return ''
+  return translate(languageOf(locale), `parts.${token}`)
+}
+
+function annotationPhrase(locale, key) {
+  const language = languageOf(locale)
+  if (key === 'grainline') return translate(language, 'ui.grainline')
+  if (key === 'cutOnFold') return translate(language, 'ui.cutOnFold')
+  if (key === 'cutOnFoldAndGrainline') {
+    return `${translate(language, 'ui.cutOnFold')}, ${translate(language, 'ui.grainline')}`
+  }
+  return ANNOTATIONS[language]?.[key] || ANNOTATIONS.en[key] || humanizeKey(key)
+}
+
+function designPhrase(namespace, key) {
+  const design = freesewingDesigns[namespace]
+  if (!design) return ''
+  const part = design.p?.[key]
+  if (typeof part === 'string' && part) return part
+  const entry = design.s?.[key]
+  if (typeof entry === 'string' && entry) return entry
+  if (entry && typeof entry.t === 'string') return entry.t
+  return ''
+}
+
+function phraseFor(locale, namespace, key) {
+  if (namespace === 'plugin-annotations') return annotationPhrase(locale, key)
+  const part = partPhrase(locale, key)
+  if (part) return part
+  return designPhrase(namespace, key) || humanizeKey(key)
+}
+
+/**
+ * FreeSewing text, including namespaced keys such as plugin-annotations:cut.
+ * Part names use our glossary. Anything still missing falls back to English.
+ */
 export function translatePhrase(locale, text) {
   if (typeof text !== 'string') return text
-  for (const token of PART_TOKENS) {
-    if (text === catalogs.en.parts[token]) return translate(locale, `parts.${token}`)
+  if (!text.includes(':')) {
+    const trimmed = text.trim()
+    if (trimmed && !trimmed.includes(' ')) {
+      const part = partPhrase(locale, trimmed)
+      if (part) return text.replace(trimmed, part)
+    }
+    for (const token of PART_TOKENS) {
+      if (text === catalogs.en.parts[token]) return translate(languageOf(locale), `parts.${token}`)
+    }
+    return text
   }
-  return text
+  return text.replace(/(^|[\s])([A-Za-z][A-Za-z0-9-]*)[:]([A-Za-z0-9_.-]+)/g, (match, lead, namespace, key) => {
+    return lead + phraseFor(locale, namespace, key)
+  })
 }

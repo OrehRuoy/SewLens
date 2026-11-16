@@ -291,7 +291,10 @@ func _note(key: String) -> void:
 
 
 func _fail(result: Dictionary) -> void:
+	var cancelled := Billing.is_user_cancelled(result)
+	if not cancelled and (result.has("stage") or result.has("responseCode") or result.has("platform")):
+		Billing._log_billing_error(result)
 	var key := "err_pay_code" if str(result.get("error", "")) == "input" else "err_pay_verify"
-	if str(result.get("error", "")) == "cancelled":
+	if cancelled:
 		key = ""
 	show_error(find_child("PayError", true, false), key)

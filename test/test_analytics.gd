@@ -17,6 +17,7 @@ class JavaOnlyPlugin:
 
 func before_each() -> void:
 	NativeBridge.events.clear()
+	Billing._logged_billing_stages = {}
 	Fixture.prepare_profile()
 	Profile.successful_patterns = 0
 	Profile.set_language("")
@@ -139,6 +140,7 @@ func test_zero_products_logs_billing_error_and_shows_the_store_text() -> void:
 		"platform": "ios",
 		"stage": "query",
 		"response_code": "0",
+		"invalid_ids": "orehruoy.sewlens.credit,orehruoy.sewlens.unlimited",
 		"message": "0 products, invalid: orehruoy.sewlens.credit, orehruoy.sewlens.unlimited",
 		"product_count": 0,
 		"bundle_id": "com.sewlens.app",
@@ -269,18 +271,64 @@ func test_the_clickety_row_shows_only_on_ios() -> void:
 	settings.ios_for_test = false
 	Fixture.open(main, ["settings", {}])
 	assert_null(main.find_child("ClicketyButton", true, false))
+	var android_more := main.find_child("MoreAppsButton", true, false) as Button
+	assert_not_null(android_more)
+	assert_eq(android_more.text, "More apps by me")
+	assert_eq(str(android_more.get_meta("url")), settings.MORE_APPS_ANDROID)
+	assert_has(Fixture.visible_texts(main), "Also by me")
 	settings.ios_for_test = true
 	main.go("settings", {}, true)
 	await get_tree().process_frame
 	var button := main.find_child("ClicketyButton", true, false) as Button
 	assert_not_null(button)
 	assert_eq(button.text, "Clickety, knitting row counter")
+	var ios_more := main.find_child("MoreAppsButton", true, false) as Button
+	assert_not_null(ios_more)
+	assert_eq(str(ios_more.get_meta("url")), settings.MORE_APPS_IOS)
 	assert_has(Fixture.visible_texts(main), "Also by me")
 	settings.ios_for_test = null
 	main.go("settings", {}, true)
 	await get_tree().process_frame
 	assert_null(main.find_child("ClicketyButton", true, false))
+	assert_not_null(main.find_child("MoreAppsButton", true, false))
 	main.queue_free()
+
+
+func test_billing_error_logs_once_per_stage_and_skips_a_cancelled_purchase() -> void:
+	Billing._logged_billing_stages = {}
+	NativeBridge.events.clear()
+	var failure := {
+		"stage": "query",
+		"platform": "ios",
+		"responseCode": "0",
+		"invalidProductIds": ["orehruoy.sewlens.credit"],
+		"message": "none",
+	}
+	Billing._log_billing_error(failure)
+	Billing._log_billing_error(failure)
+	var logged := 0
+	for event in NativeBridge.events:
+		if str(event.get("name", "")) == "billing_error":
+			logged += 1
+			assert_eq(str(event.params.get("platform", "")), "ios")
+			assert_eq(str(event.params.get("stage", "")), "query")
+			assert_eq(str(event.params.get("response_code", "")), "0")
+			assert_eq(str(event.params.get("invalid_ids", "")), "orehruoy.sewlens.credit")
+	assert_eq(logged, 1)
+	var store := _Store.new()
+	store.purchase_result = {"ok": false, "error": "cancelled", "status": "cancelled", "stage": "purchase", "platform": "android", "responseName": "USER_CANCELED"}
+	Billing.store = store
+	var api := ApiClient.new()
+	var transport := MockTransport.new()
+	api.transport = transport
+	api.install_path = "user://test_analytics_cancel"
+	add_child_autofree(api)
+	var result: Dictionary = await Billing.buy("orehruoy.sewlens.credit", api)
+	assert_false(result.ok)
+	for event in NativeBridge.events:
+		if str(event.get("name", "")) == "billing_error":
+			assert_ne(str(event.params.get("stage", "")), "purchase")
+	Billing.store = Billing.get_node_or_null("NativeStore")
 
 
 func test_licenses_keep_the_english_mit_notice() -> void:

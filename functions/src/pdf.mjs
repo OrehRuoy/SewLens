@@ -57,12 +57,8 @@ export async function renderPatternPdf({
   const labels = uiLabels(locale)
   const pageWidth = size.width * PT_PER_MM
   const pageHeight = size.height * PT_PER_MM
-  const contentW = size.width - MARGIN_MM * 2
-  const contentH = size.height - MARGIN_MM * 2 - 8
-
-  const placed = placePieces(pieces, contentW)
-  const rows = Math.max(1, Math.ceil(placed.canvasHeight / contentH))
-  const cols = Math.max(1, Math.ceil(placed.canvasWidth / contentW))
+  const placed = layoutPieces(pieces, paper)
+  const { contentW, contentH, rows, cols } = placed
   const grid = []
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) grid.push({ row, col, id: `${String.fromCharCode(65 + row)}${col + 1}` })
@@ -108,6 +104,17 @@ export async function renderPatternPdf({
   return doc.save()
 }
 
+/** Printable area and the row × column grid that covers every placed piece. */
+export function layoutPieces(pieces, paper) {
+  const size = PAPER_MM[paper]
+  const contentW = size.width - MARGIN_MM * 2
+  const contentH = size.height - MARGIN_MM * 2 - 8
+  const placed = placePieces(pieces, contentW)
+  const rows = Math.max(1, Math.ceil(placed.canvasHeight / contentH) || 1)
+  const cols = Math.max(1, Math.ceil(placed.canvasWidth / contentW) || 1)
+  return { ...placed, contentW, contentH, rows, cols }
+}
+
 function placePieces(pieces, contentW) {
   const gap = 8
   let x = 0
@@ -125,11 +132,13 @@ function placePieces(pieces, contentW) {
     x += piece.width + gap
     rowHeight = Math.max(rowHeight, piece.height)
   }
-  return {
-    pieces: placedPieces,
-    canvasWidth: Math.max(contentW, x),
-    canvasHeight: y + rowHeight,
+  let canvasWidth = 0
+  let canvasHeight = 0
+  for (const piece of placedPieces) {
+    canvasWidth = Math.max(canvasWidth, piece.placeX + piece.width)
+    canvasHeight = Math.max(canvasHeight, piece.placeY + piece.height)
   }
+  return { pieces: placedPieces, canvasWidth, canvasHeight }
 }
 
 function drawCalibrationPage(page, context) {

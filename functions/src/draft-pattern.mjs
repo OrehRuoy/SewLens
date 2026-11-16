@@ -1,10 +1,12 @@
 import { isDegreeMeasurement, measurements as measurementCatalog } from '@freesewing/config'
 import { plugin as pluginI18n } from '@freesewing/plugin-i18n'
+import { plugin as pluginTheme } from '@freesewing/plugin-theme'
 import { plugin as pluginTransform } from '@freesewing/plugin-transform'
 import { clampOptions, optionKinds } from './clamp.mjs'
 import { DESIGN_NAMES, DESIGNS } from './designs.mjs'
 import { patternPieces } from './geometry.mjs'
 import { formatMeasurement, pieceLabel, translate, translatePhrase, uiLabels } from './labels.mjs'
+import { stylePatternSvg } from './pattern-svg.mjs'
 import { renderPatternPdf } from './pdf.mjs'
 import { normalizeLocale, normalizePaper, normalizeUnits, toMillimetres } from './units.mjs'
 import { estimateYardage } from './yardage.mjs'
@@ -86,13 +88,14 @@ export async function draftPattern(input = {}, runtime = {}) {
     scale: 1,
   })
   pattern.use(pluginTransform)
+  pattern.use(pluginTheme, { stripped: true })
   pattern.use(pluginI18n, (text) => translatePhrase(locale, text))
   try {
     pattern.draft()
   } catch (error) {
     throw new PatternInputError(error.message || 'pattern failed to draft')
   }
-  const svg = pattern.render()
+  const svg = stylePatternSvg(pattern.render())
   const pieces = patternPieces(svg)
   const yardageMm = estimateYardage(pieces)
   const labels = uiLabels(locale)

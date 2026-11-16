@@ -17,6 +17,8 @@ var price_state := "idle"
 ## Debug builds can show the store's own error. Release exports never do.
 var show_price_diagnostic := true
 var price_diagnostic := ""
+## One billing_error per stage for this app launch. A new launch starts empty.
+var _logged_billing_stages := {}
 
 signal updated
 
@@ -168,7 +170,25 @@ func diagnostic_line(loaded: Dictionary) -> String:
 	return " · ".join(parts)
 
 
+## A dismissed purchase sheet is not a billing failure.
+static func is_user_cancelled(loaded: Dictionary) -> bool:
+	var status := str(loaded.get("status", "")).to_lower()
+	var error := str(loaded.get("error", "")).to_lower()
+	var name := str(loaded.get("responseName", "")).to_upper()
+	if status == "cancelled" or status == "canceled" or error == "cancelled" or error == "canceled":
+		return true
+	return name == "USER_CANCELED" or name == "USER_CANCELLED"
+
+
 func _log_billing_error(loaded: Dictionary) -> void:
+	if is_user_cancelled(loaded):
+		return
+	var stage := str(loaded.get("stage", "query"))
+	if stage == "":
+		stage = "query"
+	if _logged_billing_stages.has(stage):
+		return
+	_logged_billing_stages[stage] = true
 	var ids = loaded.get("unfetchedProductIds", [])
 	if _id_list(ids).is_empty():
 		ids = loaded.get("invalidProductIds", [])
@@ -178,7 +198,7 @@ func _log_billing_error(loaded: Dictionary) -> void:
 	var message := str(loaded.get("message", loaded.get("error", "")))
 	var params := {
 		"platform": str(loaded.get("platform", _store_platform())),
-		"stage": str(loaded.get("stage", "query")),
+		"stage": stage,
 		"response_code": str(code),
 		"message": message.substr(0, 100),
 		"product_ids": _ids_text(ids),

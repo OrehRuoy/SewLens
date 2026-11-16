@@ -1,7 +1,9 @@
 import { inflateSync } from 'node:zlib'
 import { PDFDocument, PDFName } from 'pdf-lib'
 import { draftPattern } from '../src/draft-pattern.mjs'
+import { patternPieces } from '../src/geometry.mjs'
 import { uiLabels } from '../src/labels.mjs'
+import { layoutPieces } from '../src/pdf.mjs'
 import { PT_PER_IN, PT_PER_MM } from '../src/units.mjs'
 
 function inflate(stream) {
@@ -155,4 +157,93 @@ describe('tiled PDF test square', () => {
       expect(text).not.toContain('{{missing:')
     }
   })
+})
+
+const GARMENTS = {
+  aaron: {
+    biceps: 32,
+    chest: 96,
+    hpsToBust: 27,
+    hpsToWaistBack: 45,
+    neck: 38,
+    shoulderToShoulder: 42,
+    shoulderSlope: 13,
+    waistToArmpit: 21,
+    waistToHips: 14,
+    hips: 98,
+  },
+  teagan: {
+    biceps: 32,
+    chest: 96,
+    hpsToBust: 27,
+    hpsToWaistBack: 45,
+    neck: 38,
+    shoulderToShoulder: 42,
+    shoulderSlope: 13,
+    waistToArmpit: 21,
+    waistToHips: 14,
+    hips: 98,
+    waist: 82,
+    shoulderToWrist: 62,
+    wrist: 17,
+  },
+  penelope: {
+    waist: 82,
+    seat: 100,
+    waistToHips: 14,
+    waistToSeat: 22,
+    waistToKnee: 56,
+  },
+}
+
+function spanText(svg) {
+  return [...svg.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map((match) => match[1])
+}
+
+describe('tiled pattern pages cover every piece', () => {
+  test.each(['aaron', 'teagan', 'penelope'].flatMap((design) => ['a4', 'letter'].map((paper) => [design, paper])))(
+    '%s on %s keeps every piece inside the page grid',
+    async (design, paper) => {
+      const result = await draftPattern({
+        design,
+        measurements: GARMENTS[design],
+        units: 'metric',
+        locale: 'en',
+        paper,
+      })
+      const pieces = patternPieces(result.svg)
+      expect(pieces.length).toBeGreaterThan(0)
+      const layout = layoutPieces(pieces, paper)
+      for (const piece of layout.pieces) {
+        expect(piece.placeX + piece.width).toBeLessThanOrEqual(layout.cols * layout.contentW + 0.05)
+        expect(piece.placeY + piece.height).toBeLessThanOrEqual(layout.rows * layout.contentH + 0.05)
+      }
+      const widest = Math.max(...pieces.map((piece) => piece.width))
+      expect(layout.cols * layout.contentW).toBeGreaterThanOrEqual(widest - 0.05)
+      const doc = await openPdf(result.pdfBase64)
+      expect(doc.getPageCount()).toBe(layout.rows * layout.cols + 2)
+      const text = await pdfText(result.pdfBase64)
+      expect(text).toContain(`A${layout.cols}`)
+      const style = result.svg.match(/<style type="text\/css">[\s\S]*?<\/style>/)
+      expect(style).toBeTruthy()
+      expect(style[0]).toMatch(/fill:\s*none/)
+      expect(style[0].length).toBeGreaterThan(200)
+      expect(result.svg).toMatch(/fill:\s*none/)
+      expect(result.svg).toMatch(/\.hidden[\s\S]{0,80}display:\s*none/)
+      expect(result.svg).toMatch(/\.note[\s\S]{0,40}display:\s*none/)
+      for (const path of result.svg.match(/<path\b[^>]*class="[^"]*\bfabric\b[^"]*"[^>]*\/>/g) || []) {
+        expect(path).toMatch(/fill="none"/)
+        expect(path).not.toMatch(/fill="(?:#000(?:000)?|black)"/i)
+      }
+      const labels = spanText(result.svg).join('\n')
+      expect(labels).not.toMatch(/plugin-annotations:[A-Za-z]/)
+      expect(labels).not.toMatch(new RegExp(`${design}:[A-Za-z]`))
+      expect(labels).toContain('Front')
+      expect(labels).toContain('Back')
+      expect(labels).toMatch(/Cut \d/)
+      expect(labels).toMatch(/Grainline|Cut on fold/)
+      if (design === 'teagan') expect(labels).toContain('Sleeve')
+    },
+    60000
+  )
 })

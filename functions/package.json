@@ -26,6 +26,7 @@
     "@freesewing/paco": "^4.10.2",
     "@freesewing/penelope": "^4.10.2",
     "@freesewing/plugin-i18n": "^4.10.2",
+    "@freesewing/plugin-theme": "4.10.2",
     "@freesewing/plugin-transform": "^4.10.2",
     "@freesewing/sandy": "^4.10.2",
     "@freesewing/simon": "^4.10.2",

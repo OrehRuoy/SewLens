@@ -3,8 +3,14 @@ extends Screen
 ## licenses, legal links and the privacy summary, in grouped sections.
 
 const CLICKETY_URL := "https://apps.apple.com/us/app/clickety-knitting-row-counter/id6817437890"
+const MORE_APPS_IOS := "https://apps.apple.com/us/developer/brock-james-hall/id6789963001"
+const MORE_APPS_ANDROID := "https://play.google.com/store/apps/dev?id=6471292801536294378"
 ## Tests set this to true or false. Left unset, the row follows the iOS export feature.
 static var ios_for_test: Variant = null
+
+
+static func more_apps_url(on_ios: bool) -> String:
+	return MORE_APPS_IOS if on_ios else MORE_APPS_ANDROID
 
 
 func title_key() -> String:
@@ -99,13 +105,21 @@ func _render() -> void:
 	terms.pressed.connect(func() -> void: NativeBridge.open_url(UI.TERMS_URL))
 	page.add_child(UI.group([intro, licenses, privacy, terms]))
 
+	page.add_child(_gap())
+	page.add_child(UI.section(tr("section_also_by_me")))
+	var also: Array = []
 	if _on_ios():
-		page.add_child(_gap())
-		page.add_child(UI.section(tr("section_also_by_me")))
 		var clickety := UI.list_row(tr("btn_clickety"), "globe", "")
 		clickety.name = "ClicketyButton"
 		clickety.pressed.connect(func() -> void: NativeBridge.open_url(CLICKETY_URL))
-		page.add_child(UI.group([clickety]))
+		also.append(clickety)
+	var more_url := more_apps_url(_on_ios())
+	var more := UI.list_row(tr("btn_more_apps"), "globe", "")
+	more.name = "MoreAppsButton"
+	more.set_meta("url", more_url)
+	more.pressed.connect(func() -> void: NativeBridge.open_url(more_url))
+	also.append(more)
+	page.add_child(UI.group(also))
 
 	page.add_child(_gap())
 	if Profile.photo_consent:
