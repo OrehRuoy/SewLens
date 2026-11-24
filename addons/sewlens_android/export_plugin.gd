@@ -32,7 +32,11 @@ class AndroidExportPlugin extends EditorExportPlugin:
 		# Written into src/release/AndroidManifest.xml on every Gradle export.
 		# The plugin AAR manifest is not enough: Godot replaces the release manifest
 		# and does not always merge queries from an .aar.
-		return "<uses-permission android:name=\"com.android.vending.BILLING\"/>\n<queries>\n<package android:name=\"com.android.vending\"/>\n<intent>\n<action android:name=\"com.android.vending.billing.InAppBillingService.BIND\"/>\n</intent>\n</queries>"
+		# screen.portrait is implied as required by screenOrientation=portrait.
+		# Declaring it here, inside the manifest Godot rewrites on every export,
+		# keeps Play from treating portrait as required hardware. tools:replace
+		# wins if another manifest still marks the feature required.
+		return "<uses-permission android:name=\"com.android.vending.BILLING\"/>\n<uses-feature android:name=\"android.hardware.screen.portrait\" android:required=\"false\" tools:replace=\"android:required\"/>\n<queries>\n<package android:name=\"com.android.vending\"/>\n<intent>\n<action android:name=\"com.android.vending.billing.InAppBillingService.BIND\"/>\n</intent>\n</queries>"
 
 	func _get_name() -> String:
 		return "SewLensAndroid"
