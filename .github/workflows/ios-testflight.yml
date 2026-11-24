@@ -124,7 +124,10 @@ jobs:
   build-ios:
     needs: preflight
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.run_macos_export) }}
-    runs-on: macos-26
+    # macos-26 is the arm64 image. GitHub has been cancelling those jobs
+    # after 15 minutes with no runner ("not acquired by Runner of type hosted").
+    # The Intel image has the same Xcode 26 and is outside that queue.
+    runs-on: macos-26-intel
     timeout-minutes: 90
     env:
       GODOT_VERSION: "4.6.3"
