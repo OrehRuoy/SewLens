@@ -111,6 +111,7 @@ func _use_photo(path: String) -> void:
 
 
 func _send_photo() -> void:
+	NativeBridge.log_pattern_started(session())
 	NativeBridge.log_event("photo_submitted", {"source": str(session().get("photo_source", ""))})
 	router.go("analyze")
 

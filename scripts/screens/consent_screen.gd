@@ -25,6 +25,7 @@ func enter(_params: Dictionary) -> void:
 
 func _accept() -> void:
 	Profile.accept_photo_consent()
+	NativeBridge.log_pattern_started(session())
 	NativeBridge.log_event("photo_submitted", {"source": str(session().get("photo_source", ""))})
 	router.replace("analyze")
 

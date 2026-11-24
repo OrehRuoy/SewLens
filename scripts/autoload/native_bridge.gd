@@ -71,11 +71,30 @@ func is_busy() -> bool:
 
 ## Set only by the debug screenshot capture, so store shots show the phone camera button.
 var screenshot_camera := false
+## Set only by the debug screenshot capture, so Android store shots include Save to device.
+var screenshot_android := false
 
 
 func can_use_camera() -> bool:
 	var demo_camera := screenshot_camera and OS.is_debug_build() and not OS.has_feature("template")
 	return demo_camera or _android != null or OS.has_feature("ios")
+
+
+## One pattern_started per new pattern: a submitted photo, or the first
+## measurement pass that will draft a pattern. Editing saved measurements does not count.
+func log_pattern_started(session: Dictionary) -> void:
+	if bool(session.get("pattern_started", false)):
+		return
+	session["pattern_started"] = true
+	log_event("pattern_started", {})
+
+
+func analytics_platform() -> String:
+	if OS.has_feature("ios") or OS.get_name() == "iOS":
+		return "ios"
+	if OS.has_feature("android") or OS.get_name() == "Android":
+		return "android"
+	return OS.get_name().to_lower()
 
 
 func log_event(event_name: String, params: Dictionary) -> void:
@@ -425,6 +444,7 @@ func _on_android_open(status: String) -> void:
 func _start_export(action: String, path: String, native: Callable) -> void:
 	if is_busy():
 		return
+	_log_pdf_event(action)
 	_pending_action = action
 	if not FileAccess.file_exists(path):
 		_finish_export(action, "error")
@@ -433,6 +453,20 @@ func _start_export(action: String, path: String, native: Callable) -> void:
 		_finish_export(action, export_result_for_test)
 		return
 	native.call()
+
+
+func _log_pdf_event(action: String) -> void:
+	var event_name := ""
+	match action:
+		"share":
+			event_name = "pdf_share"
+		"print":
+			event_name = "pdf_print"
+		"save":
+			event_name = "pdf_save"
+		_:
+			return
+	log_event(event_name, {"platform": analytics_platform()})
 
 
 func _finish_export(action: String, status: String) -> void:

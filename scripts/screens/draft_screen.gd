@@ -164,7 +164,7 @@ func _show_result(result: Dictionary) -> void:
 	print_button.disabled = pdf_path == ""
 	print_button.pressed.connect(_print.bind(pdf_path))
 	_result_box.add_child(print_button)
-	if OS.has_feature("android") or OS.get_name() == "Android":
+	if _on_android():
 		var save := UI.icon_button(tr("btn_save_device"), "doc")
 		save.name = "SaveButton"
 		save.disabled = pdf_path == ""
@@ -183,6 +183,12 @@ func _show_result(result: Dictionary) -> void:
 	again.name = "NewPatternButton"
 	again.pressed.connect(func() -> void: router.go("home", {}, true))
 	_result_box.add_child(UI.group([steps, fit, again]))
+
+
+func _on_android() -> bool:
+	if OS.has_feature("android") or OS.get_name() == "Android":
+		return true
+	return NativeBridge.screenshot_android and OS.is_debug_build() and not OS.has_feature("template")
 
 
 ## Fabric length in metres (cm) or yards (inch), one decimal.

@@ -44,10 +44,12 @@ func test_funnel_events_include_locale() -> void:
 	main.go("measure", {"keys": ["chest"], "then": "back"})
 	(main.current().find_child("NextButton", true, false) as Button).pressed.emit()
 	_assert_event("measure_done")
+	_assert_no_event("pattern_started")
 	main.go("home", {}, true)
 	Profile.photo_consent = true
 	(main.find_child("SampleButton", true, false) as Button).pressed.emit()
 	_assert_event("photo_submitted", {"source": "sample"})
+	_assert_event("pattern_started")
 	var api := ApiClient.new()
 	var transport := MockTransport.new()
 	api.transport = transport
@@ -107,6 +109,7 @@ func test_paywall_and_billing_errors_are_logged() -> void:
 	Fixture.open(main, ["paywall", {}])
 	await _frames(2)
 	_assert_event("paywall_shown")
+	_assert_event("shop_opened")
 	_assert_event("billing_error", {
 		"platform": Billing._store_platform(),
 		"response_code": "unavailable",
@@ -425,10 +428,95 @@ func test_billing_error_logs_once_per_stage_and_skips_a_cancelled_purchase() -> 
 	add_child_autofree(api)
 	var result: Dictionary = await Billing.buy("orehruoy.sewlens.credit", api)
 	assert_false(result.ok)
+	_assert_event("purchase_canceled")
 	for event in NativeBridge.events:
 		if str(event.get("name", "")) == "billing_error":
 			assert_ne(str(event.params.get("stage", "")), "purchase")
 	Billing.store = Billing.get_node_or_null("NativeStore")
+
+
+func test_a_new_pattern_starts_once_from_measurements_and_not_again() -> void:
+	var main := Fixture.make_main(self)
+	main.session = {}
+	main.go("measure", {"keys": ["chest"], "then": "draft"}, true)
+	_assert_event("pattern_started")
+	assert_eq(_event_count("pattern_started"), 1)
+	main.go("measure", {"keys": ["waist"], "then": "draft"}, true)
+	assert_eq(_event_count("pattern_started"), 1)
+	for event in NativeBridge.events:
+		if str(event.get("name", "")) != "pattern_started":
+			continue
+		var params: Dictionary = event.get("params", {})
+		assert_eq(params.keys(), ["locale"])
+	main.queue_free()
+
+
+func test_pdf_actions_log_only_the_platform() -> void:
+	var platform := NativeBridge.analytics_platform()
+	NativeBridge.share_file("user://missing-analytics.pdf", "application/pdf", "Aaron")
+	NativeBridge.print_file("user://missing-analytics.pdf", "Aaron")
+	NativeBridge.save_file("user://missing-analytics.pdf", "aaron.pdf")
+	_assert_event("pdf_share", {"platform": platform})
+	_assert_event("pdf_print", {"platform": platform})
+	_assert_event("pdf_save", {"platform": platform})
+	for event in NativeBridge.events:
+		var name := str(event.get("name", ""))
+		if name != "pdf_share" and name != "pdf_print" and name != "pdf_save":
+			continue
+		var params: Dictionary = event.get("params", {})
+		assert_false(params.has("path"))
+		assert_false(params.has("title"))
+		assert_eq(params.keys(), ["platform", "locale"])
+
+
+func test_buy_tapped_names_the_product_and_a_cancel_stays_empty() -> void:
+	var store := _Store.new()
+	store.load_result = {"ok": true, "prices": {"orehruoy.sewlens.credit": "$2.99", "orehruoy.sewlens.unlimited": "$24.99"}}
+	store.purchase_result = {"ok": false, "error": "cancelled", "status": "cancelled"}
+	Billing.store = store
+	Billing.prices = {}
+	Billing.price_state = "idle"
+	var main := Fixture.make_main(self)
+	Fixture.open(main, ["paywall", {}])
+	await _frames(3)
+	var buy := main.find_child("BuyCredit", true, false) as Button
+	assert_false(buy.disabled)
+	buy.pressed.emit()
+	await _frames(3)
+	_assert_event("buy_tapped", {"product_id": "orehruoy.sewlens.credit"})
+	_assert_event("purchase_canceled")
+	for event in NativeBridge.events:
+		if str(event.get("name", "")) != "buy_tapped" and str(event.get("name", "")) != "purchase_canceled":
+			continue
+		var params: Dictionary = event.get("params", {})
+		assert_false(params.has("receipt"))
+		assert_false(params.has("transactionId"))
+	main.queue_free()
+	Billing.prices = {}
+	Billing.price_state = "idle"
+	Billing.store = Billing.get_node_or_null("NativeStore")
+
+
+func test_design_finder_busy_offers_a_manual_choice_first() -> void:
+	Profile.photo_consent = true
+	var main := Fixture.make_main(self)
+	main.session = Fixture.session()
+	main.api.transport.queue_error("UNAVAILABLE", "busy", 503)
+	main.go("analyze", {"autostart": true}, true)
+	await _frames(4)
+	var manual := main.find_child("ManualButton", true, false) as Button
+	var retry := main.find_child("RetryButton", true, false) as Button
+	assert_eq(manual.theme_type_variation, "PrimaryButton")
+	assert_ne(retry.theme_type_variation, "PrimaryButton")
+	assert_lt(manual.get_index(), retry.get_index())
+	assert_eq(manual.text, "Choose a design myself")
+	assert_eq(retry.text, "Try again")
+	var error := ""
+	for node in main.find_children("*", "Label", true, false):
+		if str(node.text).begins_with("We couldn't find a match"):
+			error = node.text
+	assert_eq(error, "We couldn't find a match right now. Pick the closest design yourself, or try again.")
+	main.queue_free()
 
 
 func test_licenses_keep_the_english_mit_notice() -> void:
@@ -452,6 +540,14 @@ func test_licenses_keep_the_english_mit_notice() -> void:
 	assert_true(font_notice.contains("SIL OPEN FONT LICENSE Version 1.1"))
 	assert_true(font_notice.contains("THE FONT SOFTWARE IS PROVIDED"))
 	main.queue_free()
+
+
+func _event_count(event_name: String) -> int:
+	var count := 0
+	for event in NativeBridge.events:
+		if str(event.get("name", "")) == event_name:
+			count += 1
+	return count
 
 
 func _assert_no_event(event_name: String) -> void:

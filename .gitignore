@@ -36,6 +36,9 @@ out/
 # Local build plan (not part of the app repo)
 sewlens-build-plan/
 
+# Regenerated store renders (test/capture_store.gd). Too large to commit.
+store_screenshots/
+
 # OS / editor
 .DS_Store
 Thumbs.db

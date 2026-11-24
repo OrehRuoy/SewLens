@@ -3,7 +3,7 @@ extends Screen
 
 const API_ERRORS := {
 	"network": "err_api_network",
-	"unavailable": "err_api_unavailable",
+	"unavailable": "err_design_finder",
 	"limit": "err_api_limit",
 	"input": "err_api_input",
 }
@@ -26,14 +26,14 @@ func enter(params: Dictionary) -> void:
 	page.add_child(_status)
 	_error = UI.error_label()
 	page.add_child(_error)
-	_retry = UI.icon_button(tr("btn_retry"), "replay", true)
-	_retry.name = "RetryButton"
-	_retry.pressed.connect(_start)
-	page.add_child(_retry)
-	_manual = UI.icon_button(tr("btn_pick_design_manual"), "grid")
+	_manual = UI.icon_button(tr("btn_pick_design_manual"), "grid", true)
 	_manual.name = "ManualButton"
 	_manual.pressed.connect(func() -> void: router.replace("designs"))
 	page.add_child(_manual)
+	_retry = UI.icon_button(tr("btn_retry"), "replay")
+	_retry.name = "RetryButton"
+	_retry.pressed.connect(_start)
+	page.add_child(_retry)
 	_set_busy(false)
 	if params.get("autostart", true):
 		_start()

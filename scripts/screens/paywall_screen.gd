@@ -16,6 +16,7 @@ func shows_back() -> bool:
 
 func enter(_params: Dictionary) -> void:
 	NativeBridge.log_event("paywall_shown", {})
+	NativeBridge.log_event("shop_opened", {})
 	var page := build_page()
 	var mark := TextureRect.new()
 	mark.texture = MARK
@@ -249,6 +250,7 @@ func _buy_unlimited() -> void:
 
 
 func _buy(product_id: String) -> void:
+	NativeBridge.log_event("buy_tapped", {"product_id": product_id})
 	var result: Dictionary = await Billing.buy(product_id, router.api)
 	if result.get("ok", false):
 		_done("pay_bought")

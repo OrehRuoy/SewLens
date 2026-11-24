@@ -18,6 +18,8 @@ func enter(params: Dictionary) -> void:
 	keys = params.get("keys", []).duplicate()
 	then = str(params.get("then", "back"))
 	index = 0
+	if then == "draft":
+		NativeBridge.log_pattern_started(session())
 	if keys.is_empty():
 		keys = DesignCatalog.measurement_keys()
 	_render()

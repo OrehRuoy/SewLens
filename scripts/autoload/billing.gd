@@ -96,6 +96,8 @@ func recover_owned(api: ApiClient) -> void:
 func buy(product_id: String, api: ApiClient) -> Dictionary:
 	var receipt: Dictionary = await store.purchase(product_id)
 	if not receipt.get("ok", false):
+		if is_user_cancelled(receipt):
+			NativeBridge.log_event("purchase_canceled", {})
 		_log_billing_error(receipt)
 		return receipt
 	return await _verify(api, receipt)
